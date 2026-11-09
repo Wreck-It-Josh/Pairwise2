@@ -257,9 +257,9 @@ function wallet(){
   <div class="grid g-2">
     <div class="card"><div class="row"><div><h3>Currencies</h3><div class="hint">Your balances in each currency</div></div><button class="link" data-act="rates">${ic('refresh')}About rates</button></div>
       <div style="margin-top:8px">${cur.map(([k,n,col,s],ci)=>`<div class="cur" style="--i:${ci}"><div class="flag" style="background:${col}">${k.slice(0,2)}</div><div><b>${k}</b><small>${n}</small></div><div class="meter"><i data-w="${Math.max(3,S.acc[k]*S.rate[k]*GY/tot*100).toFixed(1)}"></i></div><div class="amt" data-count="${S.acc[k]}" data-f="${s}">0</div></div>`).join('')}</div></div>
-    <div class="card"><div class="row"><div><h3>Upcoming Bills</h3><div class="hint">Due in the next 2 weeks</div></div><button class="btn sm dark" data-act="setup">Edit bills</button></div>
-      <div style="margin-top:8px">${S.bills.map(b=>`<div class="bill ${b.paid?'paid':''}"><div class="ic-b">${ic(b.ic)}</div><div><b>${esc(b.name)}</b><small>${b.paid?'Paid':`${b.due} · in ${b.days} days`}</small></div><b>${fmt(b.amt)}</b><button class="sw" role="switch" aria-checked="${!!b.auto}" aria-label="Autopay ${esc(b.name)}" data-bill="${b.id}"></button></div>`).join('')}</div>
-      <div class="hint" style="margin-top:10px">Toggle autopay. Bills are paid from your GYD balance on the due date.</div></div>
+    <div class="card"><div class="row"><div><h3>Bills</h3><div class="hint">Paid once a month from your Salary account</div></div><button class="btn sm dark" data-act="setup">Edit bills</button></div>
+      <div style="margin-top:8px">${S.bills.map(b=>`<div class="bill ${b.paid||b.skip?'paid':''}"><div class="ic-b">${ic(b.ic)}</div><div><b>${esc(b.name)}</b><small class="${!b.paid&&!b.skip&&b.days<0?'bad':''}">${billStatus(b)}</small></div><b>${fmt(b.amt)}</b>${b.paid?`<button class="btn sm" data-billundo="${b.id}">Undo</button>`:b.skip?'<span></span>':`<button class="btn sm dark" data-billpay="${b.id}">Mark paid</button>`}<button class="sw" role="switch" aria-checked="${!!b.auto}" aria-label="Autopay ${esc(b.name)}" data-bill="${b.id}"></button></div>`).join('')||'<div class="hint" style="padding:10px 0">No bills yet. Add rent, electricity and others in Edit bills.</div>'}</div>
+      <div class="hint" style="margin-top:10px">Autopay records a bill on its due date (the next time you open the app). Mark paid records it now. Either way it counts in ${listAnd([...new Set((S.bills||[]).map(b=>b.cat).filter(Boolean))])||'its budget category'} and comes off your Salary account.</div></div>
   </div>`;
 }
 /* entries logged in the app carry ts; older sample rows only have a "Mon D" label */
@@ -628,6 +628,8 @@ function ensureTg(){
   if(S.income==null)S.income=(S.tg&&S.tg.inc)?((+S.tg.inc.p1||0)+(+S.tg.inc.p2||0)):440000;
   ['tg','funds','people','uid_p1','uid_p2','pname_p1','pname_p2','settles'].forEach(k=>{if(k in S)delete S[k]});
   if(!S.aptPlan||typeof S.aptPlan!=='object')S.aptPlan={monthly:50000,cash:null};
+  /* bills saved before payment tracking: take the day from the "Nov 5" label and owe nothing before today */
+  (S.bills||[]).forEach(b=>{if(!b.day)b.day=Math.min(28,Math.max(1,parseInt(String(b.due||'').replace(/\D+/g,' ').trim().split(' ').pop())||1));if(!b.start)b.start=iso(new Date());if(!b.cat)b.cat=billCat(b.name)});
   if(Array.isArray(S.cards)){
     const fresh=!S.cards.some(c=>c.main)&&!S.cards.some(c=>c.bal!==undefined);
     if(fresh){const nm=['Salary account','Savings','Joint account'],bl=[0,S.fsav||120000,45000];S.cards.forEach((c,i)=>{c.name=nm[i]||c.name;c.bal=bl[i]||0;if(i===0)c.main=true})}
@@ -683,8 +685,42 @@ function planCard(){
 }
 /* ---------- setup, quick add, nudges ---------- */
 const billIc=n=>/rent|mortgage/i.test(n)?'home':/elec|power|gpl/i.test(n)?'bolt':/internet|wifi|flow|digicel|gt&t/i.test(n)?'wifi':/water|gwi/i.test(n)?'drop':'receipt';
-function billDue(day){const n=new Date(),t0=new Date(n.getFullYear(),n.getMonth(),n.getDate());let d=new Date(n.getFullYear(),n.getMonth(),Math.min(28,Math.max(1,day|0)));if(d<t0)d=new Date(n.getFullYear(),n.getMonth()+1,d.getDate());return {due:d.toLocaleDateString('en',{month:'short',day:'numeric'}),days:Math.round((d-t0)/864e5)}}
-function refreshBills(){(S.bills||[]).forEach(b=>{if(b.day){const r=billDue(b.day);b.due=r.due;b.days=r.days}})}
+/* Each bill is owed once a calendar month on b.day. b.paidFor holds the 'YYYY-MM' it was last paid for,
+   b.start the date it was added: months whose due date falls before that are treated as already handled. */
+const billCat=n=>/rent|mortgage/i.test(n)&&S.budget.Housing?'Housing':S.budget.Bills?'Bills':Object.keys(S.budget)[0];
+const ymKey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+function refreshBills(){
+  const n=new Date(),t0=new Date(n.getFullYear(),n.getMonth(),n.getDate());
+  (S.bills||[]).forEach(b=>{
+    const day=Math.min(28,Math.max(1,b.day|0||1)),cur=new Date(t0.getFullYear(),t0.getMonth(),day);
+    b.key=ymKey(cur);b.paid=b.paidFor===b.key;b.skip=!b.paid&&iso(cur)<(b.start||'');
+    const next=b.paid||b.skip?new Date(t0.getFullYear(),t0.getMonth()+1,day):cur;
+    b.due=dfmt(next);b.days=Math.round((next-t0)/864e5);b.dueThis=dfmt(cur);b.dueTs=+cur+12*36e5;
+  });
+}
+function billStatus(b){
+  if(b.paid)return `Paid · next due ${b.due}`;
+  if(b.skip)return `Next due ${b.due}`;
+  return b.days<0?`Overdue · was due ${b.due}`:b.days===0?'Due today':`${b.due} · in ${b.days} day${b.days>1?'s':''}`;
+}
+function payBill(b,ts){
+  const k=S.budget[b.cat]?b.cat:billCat(b.name),amt=+b.amt||0;
+  S.budget[k].spent=+(S.budget[k].spent+amt).toFixed(2);S.acc.GYD=+(S.acc.GYD-amt).toFixed(2);
+  S.tx.unshift({n:b.name,c:k,a:-amt,d:'Today',cy:S.cycle.id,ts:ts||Date.now(),bill:b.id,billKey:b.key});
+  b.paidFor=b.key;refreshBills();
+}
+/* reverse a recorded expense; a bill payment also becomes unpaid again */
+function undoTx(x){
+  const amt=-x.a;if(S.budget[x.c])S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent-amt).toFixed(2));
+  S.acc.GYD=+(S.acc.GYD+amt).toFixed(2);S.tx.splice(S.tx.indexOf(x),1);
+  if(x.bill){const b=(S.bills||[]).find(y=>y.id===x.bill);if(b&&b.paidFor===x.billKey)b.paidFor=null;refreshBills()}
+}
+/* autopay: record bills whose due date has come; returns the bills paid */
+function payDueBills(){
+  refreshBills();const paid=(S.bills||[]).filter(b=>b.auto&&!b.paid&&!b.skip&&b.days<=0);
+  paid.forEach(b=>payBill(b,Math.min(Date.now(),b.dueTs)));
+  if(paid.length)save();return paid;
+}
 const cycAge=()=>{const d=new Date(S.cycle&&S.cycle.start);return isNaN(d)?0:Math.max(0,Math.floor((Date.now()-d)/864e5))};
 const lastTxTs=()=>Math.max(0,...(S.tx||[]).map(t=>t.ts||0));
 function openSetup(){
@@ -719,7 +755,7 @@ function saveSetup(){
   const old=S.bills||[],nb=[];
   $$('[data-bn]').forEach(el=>{const i=el.dataset.bn,name=el.value.trim(),a=+$('[data-ba="'+i+'"]').value||0,d=+$('[data-bd="'+i+'"]').value||1;
     if(!name||!(a>0))return;const ex=old.find(b=>b.name===name)||{};
-    nb.push({id:ex.id||Date.now()+nb.length,name,amt:a,day:Math.min(28,Math.max(1,d)),auto:!!ex.auto,ic:ex.ic||billIc(name),...billDue(d)})});
+    nb.push({id:ex.id||Date.now()+nb.length,name,amt:a,day:Math.min(28,Math.max(1,d)),auto:!!ex.auto,ic:ex.ic||billIc(name),cat:ex.cat||billCat(name),start:ex.start||iso(new Date()),paidFor:ex.paidFor||null})});
   S.bills=nb;
   if($('#su-clear').checked){S.tx=[];S.transfers=[];S.incomeExtra=0;Object.values(S.budget).forEach(b=>b.spent=0);S.cycle={id:(S.cycle.id||1)+1,start:iso(new Date())}}
   S.setupDone=true;save();closeModal();refresh();toast('Saved. These are your numbers now.');
@@ -744,8 +780,8 @@ function nudges(){
   const o=[],ls=lastTxTs();
   if(!S.setupDone)o.push({t:'Put in your real numbers',b:'Add your income, balances and bills so the app, and Cleo, work from your real numbers.',a:'setup',l:'Set up'});
   else if(!ls||Date.now()-ls>3*864e5)o.push({t:'Nothing logged lately',b:ls?`No spending logged in ${Math.floor((Date.now()-ls)/864e5)} days. Add what you spent so the budget stays true.`:'Add your first expense so the budget has something to track.',a:'qa',l:'Add expense'});
-  const due=(S.bills||[]).filter(b=>b.days<=3);
-  if(due.length)o.push({t:`${due[0].name} is due ${due[0].days<=0?'today':'in '+due[0].days+' day'+(due[0].days>1?'s':'')}`,b:due.length>1?`Plus ${due.length-1} more bill${due.length>2?'s':''} coming up.`:'Make sure the money is ready.',a:'towallet',l:'See bills'});
+  const due=(S.bills||[]).filter(b=>!b.paid&&!b.skip&&b.days<=3).sort((a,b)=>a.days-b.days);
+  if(due.length)o.push({t:`${due[0].name} ${due[0].days<0?'is overdue':due[0].days===0?'is due today':'is due in '+due[0].days+' day'+(due[0].days>1?'s':'')}`,b:due.length>1?`Plus ${due.length-1} more bill${due.length>2?'s':''} coming up.`:'Make sure the money is ready.',a:'towallet',l:'See bills'});
   if(cycAge()>=27)o.push({t:'Time for a new cycle',b:'Your budget cycle is almost over. Start the next one from the Budget tab.',a:'tobudget',l:'Open budget'});
   return o.slice(0,3);
 }
@@ -786,6 +822,7 @@ function renderNav(){$('#nav').innerHTML=NAV.map(([k,l,i])=>`<button class="pill
 
 function paint(animate){
   $('#main').classList.toggle('anim',!!animate);
+  refreshBills();
   $('#main').innerHTML=VIEWS[ui.route]();
   counts(animate);
   requestAnimationFrame(()=>$$('[data-w]').forEach(e=>e.style.width=e.dataset.w+'%'));
@@ -931,7 +968,9 @@ document.addEventListener('click',e=>{
   const t=e.target;
   let el=t.closest('[data-scroll]');if(el){$('.cards')?.scrollBy({left:+el.dataset.scroll*246,behavior:'smooth'});return}
   el=t.closest('[data-drill]');if(el){ui.drill=el.dataset.drill;modal(drillHTML(ui.drill));return}
-  el=t.closest('[data-txdel]');if(el){const ix=+el.dataset.txdel,x=S.tx[ix];if(x){const bb=-x.a;S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent-bb).toFixed(4));S.acc.GYD=+(S.acc.GYD+bb).toFixed(2);S.tx.splice(ix,1);save();refresh();modal(drillHTML(ui.drill))}return}
+  el=t.closest('[data-txdel]');if(el){const x=S.tx[+el.dataset.txdel];if(x){undoTx(x);save();refresh();modal(drillHTML(ui.drill))}return}
+  el=t.closest('[data-billpay]');if(el){const b=S.bills.find(x=>x.id==el.dataset.billpay);if(b&&!b.paid){payBill(b);save();refresh();toast(`${b.name} paid: ${fmt(b.amt)} from your Salary account`)}return}
+  el=t.closest('[data-billundo]');if(el){const b=S.bills.find(x=>x.id==el.dataset.billundo),x=b&&S.tx.find(y=>y.bill===b.id&&y.billKey===b.key);if(x){undoTx(x)}else if(b){b.paidFor=null;refreshBills()}save();refresh();toast(`${b.name} marked unpaid`);return}
   el=t.closest('[data-why]');if(el){ui.cleoWhy=!ui.cleoWhy;refresh();return}
   el=t.closest('[data-rail]');if(el){keepForm(()=>{ui.rail=el.dataset.rail;refresh()});return}
   el=t.closest('[data-dir]');if(el){keepForm(()=>{ui.dir=el.dataset.dir;refresh()});return}
@@ -954,12 +993,13 @@ document.addEventListener('click',e=>{
     if(cur&&cur.id===id){ui.flip=ui.flip===id?null:id;$$('.cc').forEach(c=>c.classList.toggle('flip',+c.dataset.pick===ui.flip));return}
     ui.sel=id;ui.flip=null;ui.dcard=null;const sc=$('.cards'),x=sc?sc.scrollLeft:0;refresh();const n=$('.cards');if(n){n.scrollLeft=x;const cc=n.querySelector('[data-pick="'+id+'"]');if(cc){cc.classList.add('spin');setTimeout(()=>cc.classList.remove('spin'),750)}}return}
   el=t.closest('[data-contact]');if(el){ui.contact=+el.dataset.contact;const a=$('#xamt')?.value,n=$('#xnote')?.value;refresh();if($('#xamt'))$('#xamt').value=a;if($('#xnote'))$('#xnote').value=n;return}
-  el=t.closest('[data-bill]');if(el){const b=S.bills.find(x=>x.id==el.dataset.bill);b.auto=!b.auto;save();el.setAttribute('aria-checked',b.auto);toast(`Autopay ${b.auto?'on':'off'} for ${b.name}`);return}
+  el=t.closest('[data-bill]');if(el){const b=S.bills.find(x=>x.id==el.dataset.bill);b.auto=!b.auto;save();el.setAttribute('aria-checked',b.auto);
+    const p=b.auto?payDueBills():[];if(p.length){refresh();toast(`Autopay on. ${b.name} was due, so it is now recorded as paid`)}else toast(`Autopay ${b.auto?'on':'off'} for ${b.name}`);return}
   el=t.closest('[data-act]');if(!el)return;
   const a=el.dataset.act;
   if(a==='goals'){if(t.closest('[data-act="addgoal"]'))return;ui.goalsOpen=!ui.goalsOpen;refresh();return}
   if(a==='addgoal'){e.stopPropagation();ui.goalsOpen=true;refresh();setTimeout(()=>$('#gname')?.focus(),50);return}
-  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid)[0],en=S.budget.Entertainment,inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en&&en.limit>0?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>Entertainment is at ${Math.round(en.spent/en.limit*100)}% of its limit</b><span>${fmt(en.limit-en.spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
+  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=S.budget.Entertainment,inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en&&en.limit>0?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>Entertainment is at ${Math.round(en.spent/en.limit*100)}% of its limit</b><span>${fmt(en.limit-en.spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
   if(a==='theme'){const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);S.theme=nx;save();return}
   if(a==='lang'){toast('More languages are coming soon');return}
   if(a==='avatar'){const p=$('#userpop');p.hidden=!p.hidden;$('#bellpop').hidden=true;p.innerHTML=`<h4>${esc((prof()&&prof().name)||(user&&user.name)||'Guest')}</h4><div class="n"><span class="ico">${ic('mail')}</span><div><b style="word-break:break-all">${esc((user&&user.email)||'')}</b><span>Signed in on this device</span></div></div><button class="btn sm dark" style="width:100%;justify-content:center;margin-top:6px" data-act="profile">Profile settings</button><button class="btn sm" style="width:100%;justify-content:center;margin-top:6px" data-act="logout">Sign out</button>`;return}
@@ -1210,7 +1250,8 @@ function prepState(){
   try{if(!localStorage.getItem('codear-wiped2:'+KEY)){wipeAll();localStorage.setItem('codear-wiped2:'+KEY,'1');save()}}catch(_){}
   if(S.sv!==SAMPLE_V){Object.assign(S,sampleData());save()}
   if(toGYD())save();
-  ensureTg();
+  const oldBills=(S.bills||[]).some(b=>!b.start);
+  ensureTg();if(oldBills)save();
   S.fav=S.fav||{};S.prices=S.prices||{};S.hist=S.hist||{};
   if(!S.check){S.check=seedCheck();save()}
   if(!S.lists){S.lists=[makeList('groceries')];save()}
@@ -1222,7 +1263,8 @@ function prepState(){
 prepState();
 function startApp(){
   cloudSync();
-  paintAvatar();refreshBills();const fb=$('#qafab');if(fb)fb.hidden=false;
+  paintAvatar();const autoPaid=payDueBills();const fb=$('#qafab');if(fb)fb.hidden=false;
+  if(autoPaid.length)setTimeout(()=>toast(`Autopay: ${listAnd(autoPaid.map(b=>b.name))} recorded as paid`),1600);
   const start=location.hash.slice(1);
   ui.route=VIEWS[start]?start:'dashboard';
   renderNav();
