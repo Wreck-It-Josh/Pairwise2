@@ -228,7 +228,7 @@ function analytics(){
     ${earningCard()}
   </div>`;
 }
-const cardBal=c=>c.main?S.acc.GYD:(+c.bal||0);
+const cardBal=c=>c.main?S.acc.GYD:c.joint?jTotal():(+c.bal||0);
 function selCard(){const A=allCards();return A.find(c=>c.id===ui.sel)||A.find(c=>c.main)||A[0]}
 /* ---- savings goals ---- */
 /* goal money sits on one of your own (non-main) cards; S.goalCard remembers which, else the first one named Savings */
@@ -303,12 +303,12 @@ function cardMoney(c){
 }
 function acctCard(){
   const c=selCard();if(!c)return '';const m=!!c.main;
-  return `<div class="card"><h3><span class="ico">${ic('wallet')}</span>${esc(c.name)}</h3><div class="hint">${m?'Your main account. It changes with your expenses, income and transfers.':c.joint?'A joint account. Your partner sees this card and its balance too.':goalCard()&&goalCard().id===c.id?'Your savings account. Money you put into savings goals is kept here. Only you can see it, and it is not counted in your budget or Total Balance.':'Kept here for reference. Only you can see it. It is not used in budgets, totals or Cleo.'}</div>
+  return `<div class="card"><h3><span class="ico">${ic('wallet')}</span>${esc(c.name)}</h3><div class="hint">${m?'Your main account. It changes with your expenses, income and transfers.':c.joint?'Your joint savings. Its balance is the total of your Joint plans, which you and your partner share.':goalCard()&&goalCard().id===c.id?'Your savings account. Money you put into savings goals is kept here. Only you can see it, and it is not counted in your budget or Total Balance.':'Kept here for reference. Only you can see it. It is not used in budgets, totals or Cleo.'}</div>
   <div class="big" style="margin:14px 0 4px" data-count="${cardBal(c)}" data-f="G$">0</div>
   ${goalCard()&&goalCard().id===c.id&&(S.goals||[]).length?`<div class="hint">Holds your savings goals: ${fmt(Math.min(goalsHeld(),cardBal(c)))} in goals${cardBal(c)>goalsHeld()?`, ${fmt(cardBal(c)-goalsHeld())} not assigned`:''}.${goalsHeld()>cardBal(c)+0.005?` <b class="bad">Goals add up to ${fmt(goalsHeld())}, more than this card shows.</b>`:''}</div>`:''}
-  <form class="form" id="cardform" data-id="${c.id}" style="margin-top:12px"><div class="two"><label class="f">Account name<input class="in" id="cd-n" maxlength="30" required value="${esc(c.name)}"></label><label class="f">Balance (G$)<input class="in" id="cd-b" type="number" min="0" step="any" ${m?'disabled':''} value="${cardBal(c)}"></label></div>
-  ${m?'<div class="hint">To change this balance, use + Add, then Update balance.</div>':''}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn dark" type="submit">Save</button>${m?'':`<button type="button" class="btn" data-act="delcard">${ui.dcard===c.id?'Tap again to delete':'Delete account'}</button>`}</div></form>${m?'':cardMoney(c)}</div>`;
+  <form class="form" id="cardform" data-id="${c.id}" style="margin-top:12px"><div class="two"><label class="f">Account name<input class="in" id="cd-n" maxlength="30" required value="${esc(c.name)}"></label><label class="f">Balance (G$)<input class="in" id="cd-b" type="number" min="0" step="any" ${m||c.joint?'disabled':''} value="${cardBal(c)}"></label></div>
+  ${m?'<div class="hint">To change this balance, use + Add, then Update balance.</div>':c.joint?'<div class="hint">To change this balance, add or take out money in Joint plans.</div>':''}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn dark" type="submit">Save</button>${m?'':`<button type="button" class="btn" data-act="delcard">${ui.dcard===c.id?'Tap again to delete':'Delete account'}</button>`}</div></form>${m?'':c.joint?`<button class="btn dark" style="margin-top:14px" data-go="joint">${ic('users')}Open Joint plans</button>`:cardMoney(c)}</div>`;
 }
 function wallet(){
   
@@ -827,6 +827,7 @@ function undoTx(x){
   const amt=-x.a;if(S.budget[x.c])S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent-amt).toFixed(2));
   S.acc.GYD=+(S.acc.GYD+amt).toFixed(2);S.tx.splice(S.tx.indexOf(x),1);
   if(x.card)cardEdit(x.card,c=>{c.bal=+((+c.bal||0)-amt).toFixed(2);c.hist=(c.hist||[]).filter(h=>h.ts!==x.ts)});
+  if(x.jmove&&J.moves[x.jmove])jWrite('moves',x.jmove,null);
   if(x.goal){const g=(S.goals||[]).find(y=>y.id===x.goal);if(g){g.s=Math.max(0,+(g.s-amt).toFixed(2));g.hist=(g.hist||[]).filter(h=>h.ts!==x.ts)}}
   if(x.bill){const b=(S.bills||[]).find(y=>y.id===x.bill);if(b&&b.paidFor===x.billKey)b.paidFor=null;refreshBills()}
 }
@@ -930,8 +931,122 @@ function saveProfile(){
   S.income=Math.max(0,+$('#pf-i').value||0);
   save();paintAvatar();refresh();toast('Profile saved');
 }
-const VIEWS={dashboard,analytics,transfer,wallet,budget,checklist,profile};
-const NAV=[['dashboard','Dashboard','grid'],['analytics','Analytics','chart'],['transfer','Transfer','send'],['wallet','Wallet','wallet'],['budget','Budget','pie'],['checklist','Checklist','list']];
+/* ---------- joint plans ----------
+   Shared savings for big plans (a house, a wedding). Kept in this browser until the page runs on
+   claude.ai with the `db` and `user` capabilities; then plans and money moves live in the shared
+   collections joint_plans and joint_moves, both partners see them live, and whatever was saved
+   here before is uploaded once. One document per plan and per move, so two people adding money
+   at once never overwrite each other. People are stored only as ids (`who`), never names. */
+const JL='codear-joint2',JUP='codear-joint2-up',JSKIP='codear-joint2-skip';
+const J={mode:'local',state:'local',plans:{},moves:{},me:null,u:null,db:null,names:{}};
+const jMine=()=>J.mode==='cloud'?J.me:'local:'+((user&&user.email)||'').toLowerCase();
+const jCache=()=>svj(JL,{plans:J.plans,moves:J.moves});
+const jid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function jLoad(){
+  const d=ldj(JL,null);
+  if(d){J.plans=d.plans||{};J.moves=d.moves||{};return}
+  /* first run: carry over a balance typed on the old joint card */
+  J.plans={};J.moves={};
+  jload().cards.forEach((c,i)=>{if(+c.bal>0)J.moves[jid('m')+i]={plan:'',amt:+c.bal,who:null,note:'Opening balance',ts:Date.now(),opening:true}});
+  jCache();
+}
+const jPlans=()=>Object.entries(J.plans).map(([id,p])=>({...p,id})).sort((a,b)=>(a.ts||0)-(b.ts||0));
+const jMoves=()=>Object.entries(J.moves).map(([id,m])=>({...m,id})).sort((a,b)=>(b.ts||0)-(a.ts||0));
+const jSaved=pid=>sum(jMoves().filter(m=>(m.plan||'')===pid).map(m=>+m.amt||0));
+const jTotal=()=>sum(jMoves().map(m=>+m.amt||0));
+const jPlanName=pid=>(J.plans[pid]&&J.plans[pid].name)||'Joint savings';
+function jWho(w){
+  if(!w)return 'Earlier balance';
+  if(w===jMine())return 'You';
+  if(w.startsWith('local:')){const p=ldj(PKEY,{})[w.slice(6)];return (p&&p.name)||w.slice(6)}
+  return J.names[w]||'Your partner';
+}
+/* write locally at once; online, also to the shared store (its snapshot then confirms or corrects) */
+async function jWrite(kind,id,data){
+  const store=kind==='plans'?J.plans:J.moves;
+  if(data)store[id]=data;else delete store[id];
+  jCache();
+  if(J.mode!=='cloud')return true;
+  try{const ref=J.db.collection('joint_'+kind).doc(id);await (data?ref.set(data):ref.delete());return true}
+  catch(e){const c=e&&e.code;toast(c==='invalid_argument'?'You can see the joint plans but not change them. Ask to be invited as an Editor.':c==='quota_exceeded'?'The shared storage is full.':'Could not save to the shared plans. Check your connection and try again.');return false}
+}
+function refreshJ(){
+  if(!ui.ready||!['joint','wallet'].includes(ui.route))return;
+  const a=document.activeElement,aid=a&&a.id,v={};
+  $$('#main input[id],#main select[id]').forEach(i=>{v[i.id]=i.type==='checkbox'?i.checked:i.value});
+  refresh();
+  Object.entries(v).forEach(([k,x])=>{const e=$('#'+k);if(e){if(e.type==='checkbox')e.checked=x;else e.value=x}});
+  if(aid&&$('#'+aid))$('#'+aid).focus();
+}
+function jNames(){
+  if(!J.u)return;
+  const ids=[...new Set([...jMoves(),...jPlans()].map(x=>x.who).filter(w=>w&&!w.startsWith('local:')))];if(!ids.length)return;
+  J.u.profiles(ids).then(ps=>{let ch=false;ids.forEach(id=>{const n=(ps[id]&&ps[id].name)||'';if(J.names[id]!==n){J.names[id]=n;ch=true}});if(ch)refreshJ()});
+}
+/* upload what was saved on this device before going online; ids are kept, so it is safe to repeat */
+async function jUpload(p){
+  const mine='local:'+((user&&user.email)||'').toLowerCase(),fix=x=>({...x,who:x.who===mine?J.me:(x.who&&x.who.startsWith('local:')?null:x.who)});
+  const hasOpening=Object.values(J.moves).some(m=>m.opening);let ok=true;
+  for(const [id,x] of Object.entries(p.plans||{}))if(!J.plans[id])ok=await jWrite('plans',id,fix(x))&&ok;
+  for(const [id,x] of Object.entries(p.moves||{})){if(J.moves[id])continue;if(x.opening&&hasOpening){svj(JSKIP,(+ldj(JSKIP,0)||0)+(+x.amt||0));continue}ok=await jWrite('moves',id,fix(x))&&ok}
+  if(ok)try{localStorage.setItem(JUP,'1')}catch(e){}
+}
+async function jConnect(){
+  if(J.mode==='cloud'||!window.claude||!claude.use)return;
+  let db,u;try{[db,u]=await Promise.all([claude.use('db'),claude.use('user')])}catch(e){return}
+  if(!db||!u)return;const me=await u.id();if(!me)return;
+  const pending=ldj(JUP,null)?null:{plans:{...J.plans},moves:{...J.moves}};
+  Object.assign(J,{db,u,me,mode:'cloud',state:'connecting'});refreshJ();
+  const live={plans:false,moves:false},timer=setTimeout(()=>{if(J.state==='connecting'){J.state='stale';refreshJ()}},10000);
+  ['plans','moves'].forEach(kind=>db.collection('joint_'+kind).onSnapshot(s=>{
+    const o={};s.docs.forEach(d=>{o[d.id]=d.data()});J[kind]=o;
+    if(!s.metadata.fromCache)live[kind]=true;
+    if(live.plans&&live.moves&&J.state!=='live'){clearTimeout(timer);J.state='live';if(pending)jUpload(pending)}
+    jCache();jNames();refreshJ();
+  },()=>{clearTimeout(timer);J.state='error';refreshJ()}));
+}
+function jMove(pid,amt,out,note,fromMain){
+  const id=jid('m'),ts=Date.now(),a=out?-amt:amt;
+  if(fromMain){const sc=savCat();S.acc.GYD=+(S.acc.GYD-a).toFixed(2);if(!out&&sc)S.budget[sc].spent=+(S.budget[sc].spent+amt).toFixed(2);
+    S.tx.unshift({n:(out?'From joint: ':'To joint: ')+jPlanName(pid),c:!out&&sc?sc:'Transfer',a:-a,d:'Today',cy:S.cycle.id,ts,jmove:id});save()}
+  jWrite('moves',id,{plan:pid||'',amt:a,who:jMine(),note:note||'',ts,from:fromMain?'salary':''});
+}
+/* only the person who recorded a move can remove it; money that came from their salary goes back */
+function jDelMove(id){
+  const m=J.moves[id];if(!m||m.who!==jMine())return;
+  const x=(S.tx||[]).find(t=>t.jmove===id);if(x){undoTx(x);save()}else jWrite('moves',id,null);
+}
+function joint(){
+  const P=jPlans(),M=jMoves(),tot=jTotal(),un=jSaved(''),me=jMine();
+  const share={};M.forEach(m=>{const k=m.who||'';share[k]=(share[k]||0)+(+m.amt||0)});
+  const st={local:['','On this device only'],connecting:['busy','Connecting…'],live:['live','Shared with your partner'],stale:['warn','Cannot reach the shared plans yet. Showing the last saved copy'],error:['warn','Shared plans unavailable. Showing the last saved copy']}[J.state];
+  const shares=Object.entries(share).filter(([,v])=>Math.abs(v)>0.005).sort(([a],[b])=>(b===me)-(a===me)).map(([w,v])=>`<div><span>${esc(jWho(w))}</span><b>${fmt0(v)}</b></div>`).join('');
+  const planCard=p=>{
+    const s=jSaved(p.id),pct=p.target>0?Math.min(100,s/p.target*100):0,left=Math.max(0,p.target-s),n=p.monthly>0?Math.ceil(left/p.monthly):0;
+    const per={};M.filter(m=>m.plan===p.id).forEach(m=>{const k=m.who||'';per[k]=(per[k]||0)+(+m.amt||0)});
+    const who=Object.entries(per).filter(([,v])=>Math.abs(v)>0.005).map(([w,v])=>`${esc(jWho(w))} ${fmt0(v)}`).join(' · ');
+    const fc=left<=0?'Target reached. Well done, you two.':p.monthly>0?`At ${fmt0(p.monthly)} a month you get there in about ${n} month${n>1?'s':''} (${monLbl(n)}).`:'Add a monthly amount to see when you will get there.';
+    const body=ui.jedit===p.id?`<form class="form" id="jpedit" data-id="${p.id}"><label class="f">Name<input class="in" id="je-n" maxlength="40" required value="${esc(p.name)}"></label><div class="two"><label class="f">Target (G$)<input class="in" id="je-t" type="number" min="1" step="any" required value="${Math.round(p.target)}"></label><label class="f">Monthly amount (G$)<input class="in" id="je-m" type="number" min="0" step="any" value="${p.monthly?Math.round(p.monthly):''}" placeholder="Optional"></label></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm dark" type="submit">Save</button><button class="btn sm" type="button" data-jedit="">Cancel</button>${ui.jdel===p.id?`<button class="btn sm orange" type="button" data-jdelgo="${p.id}">Yes, delete${s?`. Keep its ${fmt0(s)} as not assigned`:''}</button>`:`<button class="btn sm" type="button" data-jdel="${p.id}">Delete plan</button>`}</div></form>`
+      :`<div class="hint fc" style="margin-top:6px">${fc}</div>${who?`<div class="hint">${who}</div>`:''}<div style="margin-top:10px"><button class="link" data-jedit="${p.id}">Edit</button></div>`;
+    return `<div class="card fund"><h3><span class="ico cat-ic">${ic('home')}</span>${esc(p.name)}</h3><div class="row" style="margin-top:10px"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em">${fmt(s)}</span><span class="hint" style="margin:0">of ${fmt0(p.target)}</span></div><div class="meter"><i data-w="${pct.toFixed(1)}"></i></div>${body}</div>`;
+  };
+  const hist=M.slice(0,25).map(m=>{const w=jWho(m.who);return `<div class="tx"><div class="av">${esc(w.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div><b>${m.amt>=0?'Added to':'Taken from'} ${esc(m.plan?jPlanName(m.plan):'Joint savings')}</b><small>${esc(w)} · ${dfmt(new Date(m.ts))}${m.note?' · '+esc(m.note):''}${m.from==='salary'?' · from salary':''}</small></div><div class="row" style="gap:6px"><span class="a ${m.amt>=0?'inc':''}">${m.amt>=0?'+':'-'}${fmt(Math.abs(m.amt))}</span>${m.who===me?`<button class="xdel" data-jmdel="${m.id}" aria-label="Remove this entry">×</button>`:''}</div></div>`}).join('');
+  return `<div class="page-head"><div><h1>Joint plans</h1><div class="sub">Shared savings for big plans, like building a house.</div></div><span class="syncb" data-s="${st[0]}"><i></i><span>${st[1]}</span></span></div>
+  ${+ldj(JSKIP,0)>0?`<div class="note">${ic('req')}<div><b>Your old joint card on this phone showed ${fmt(+ldj(JSKIP,0))}.</b> It was not added, because a joint balance from your partner's phone was already shared and it may be the same money. If it is different money, add it.<div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm dark" data-jskip="add">Add it</button><button class="btn sm" data-jskip="no">It is the same money</button></div></div></div>`:''}
+  ${J.mode==='local'?`<div class="note">${ic('users')}<div><b>Only on this device for now.</b> When the app is put online, these plans sync with your partner's phone automatically, and everything saved here is uploaded.</div></div>`:''}
+  <div class="grid g-2" style="margin-bottom:16px">
+    <div class="card hero"><h4>Saved together</h4><div class="hv" data-count="${tot}" data-f="$">0</div>${un>0.005&&P.length?`<div class="hs">${fmt(un)} not assigned to a plan</div>`:''}<div class="al jshare">${shares||'<div><span>No money added yet</span></div>'}</div></div>
+    <div class="card"><h3>Add or take out money</h3>${P.length||M.length?`<form class="form" id="jform"><div class="two"><label class="f">Plan<select class="in" id="jf-p"><option value="">Not assigned to a plan</option>${P.map(p=>`<option value="${p.id}" ${p.id===ui.jplan?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="jf-a" type="number" min="0.01" step="any" required></label></div>
+      <label class="f">Note (optional)<input class="in" id="jf-n" maxlength="60" placeholder="e.g. November savings"></label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="jf-f" checked style="width:auto;margin:0"> Move it from, or back to, my Salary account</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Take out</button></div></form>`:'<div class="hint">Create your first plan below, then add money to it here.</div>'}</div></div>
+  ${P.length?`<div class="grid g-3" style="margin-bottom:16px">${P.map(planCard).join('')}</div>`:''}
+  <form class="card" id="jnew" style="margin-bottom:16px"><h3>${ic('plus')}New plan</h3><div class="form"><div class="two"><label class="f">What are you saving for?<input class="in" id="jn-n" maxlength="40" required placeholder="e.g. Build our house"></label><label class="f">Target (G$)<input class="in" id="jn-t" type="number" min="1" step="any" required></label></div><label class="f">Monthly amount you plan to put in together (G$, optional)<input class="in" id="jn-m" type="number" min="0" step="any"></label><button class="btn dark" type="submit" style="justify-content:center">Create plan</button></div></form>
+  <div class="card"><h3>History</h3><div class="hint">Everyone sees every entry. You can remove only the ones you added.</div><div style="margin-top:6px">${hist||'<div class="hint" style="padding:10px 0">Nothing yet.</div>'}</div></div>`;
+}
+const VIEWS={dashboard,analytics,transfer,wallet,budget,checklist,profile,joint};
+const NAV=[['dashboard','Dashboard','grid'],['analytics','Analytics','chart'],['transfer','Transfer','send'],['wallet','Wallet','wallet'],['budget','Budget','pie'],['checklist','Checklist','list'],['joint','Joint','users']];
 
 /* ---------- render ---------- */
 function renderNav(){$('#nav').innerHTML=NAV.map(([k,l,i])=>`<button class="pill" data-go="${k}" ${k===ui.route?'aria-current="page"':''}>${k===ui.route?ic(i):''}${l}</button>`).join('');{const a=$('#nav [aria-current]');if(a&&a.scrollIntoView)try{a.scrollIntoView({inline:'center',block:'nearest'})}catch(e){}}}
@@ -1021,6 +1136,7 @@ function aiContext(){
    if(inc>0)L.push(`PLAN: monthly salary ${fmt(inc)}, limits assigned ${fmt(M.tl)}, ${inc-M.tl>=0?fmt(inc-M.tl)+' not yet assigned':fmt(M.tl-inc)+' more assigned than earned'}.`)}
   L.push(`BALANCES: ${fmt(S.acc.GYD,'G$')} GYD, ${fmt(S.acc.USD,'US$')} USD, ${fmt(S.acc.EUR,'€')} EUR, ${fmt(S.acc.GBP,'£')} GBP. Total about ${fmt(total())}. Exchange rate used: 209 G$ per US$1.`);
   (S.cycles||[]).slice(0,3).forEach((x,i)=>{if(!i)L.push('PAST CYCLES (newest first):');L.push(`- ${x.start} to ${x.end}: planned ${fmt(sum(x.cats.map(c=>c.l)))}, spent ${fmt(sum(x.cats.map(c=>c.s)))}, income ${fmt(x.inc)}; over: ${x.cats.filter(c=>c.s>c.l).map(c=>c.k).join(', ')||'none'}`)});
+  {const P=jPlans();if(P.length||jTotal()){L.push(`JOINT PLANS (shared with partner): ${fmt(jTotal())} saved together.`);P.forEach(p=>L.push(`- ${p.name}: ${fmt(jSaved(p.id))} of ${fmt(p.target)}${p.monthly?`, planning ${fmt(p.monthly)} a month`:''}`))}}
   if(S.goals&&S.goals.length){L.push('GOALS:');S.goals.forEach(g=>L.push(`- ${g.n}: ${fmt0(g.s)} saved of ${fmt0(g.t)}`))}
   const bills=(S.bills||[]).filter(b=>!b.paid);if(bills.length){L.push('BILLS COMING UP:');bills.forEach(b=>L.push(`- ${b.name} ${fmt(b.amt)} due ${b.due}${b.auto?' (auto-pay)':''}`))}
   L.push('RECENT TRANSACTIONS (newest first):');(S.tx||[]).slice(0,14).forEach(t=>{const w='';L.push(`- ${txDate(t)}: ${t.n} (${t.c}) ${fmt(t.a)}${w?' by '+w:''}`)});
@@ -1093,6 +1209,11 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-gcpick]');if(el){ui.gcPick=!!el.dataset.gcpick;openGoal(ui.goal);return}
   el=t.closest('[data-gcuse]');if(el){S.goalCard=+$('#gc-sel').value;ui.gcPick=false;save();refresh();openGoal(ui.goal);toast(`Goal money is now kept on ${goalCard().name}`);return}
   el=t.closest('[data-gcnew]');if(el){const id=Date.now();S.cards.push({id,cls:['black','orange','blue'][allCards().length%3],name:'Savings',bal:0,last:String(1000+Math.floor(Math.random()*9000)),exp:'11/30',holder:myName()});S.goalCard=id;ui.gcPick=false;save();refresh();openGoal(ui.goal);toast('Savings card created in Wallet');return}
+  el=t.closest('[data-jedit]');if(el){ui.jedit=el.dataset.jedit||null;ui.jdel=null;refresh();return}
+  el=t.closest('[data-jdel]');if(el){ui.jdel=el.dataset.jdel;refresh();return}
+  el=t.closest('[data-jdelgo]');if(el){const id=el.dataset.jdelgo;(async()=>{for(const m of jMoves().filter(m=>m.plan===id)){const {id:mid,...rest}=m;await jWrite('moves',mid,{...rest,plan:''})}await jWrite('plans',id,null);ui.jedit=null;ui.jdel=null;refresh();toast('Plan deleted')})();return}
+  el=t.closest('[data-jskip]');if(el){const a=+ldj(JSKIP,0)||0;if(el.dataset.jskip==='add'&&a>0)jWrite('moves',jid('m'),{plan:'',amt:a,who:jMine(),note:'Opening balance from this phone',ts:Date.now(),from:''});try{localStorage.removeItem(JSKIP)}catch(e){}refresh();return}
+  el=t.closest('[data-jmdel]');if(el){jDelMove(el.dataset.jmdel);refresh();toast('Entry removed');return}
   el=t.closest('[data-cyc]');if(el){const id=+el.dataset.cyc;ui.cycOpen=ui.cycOpen===id?null:id;refresh();return}
   el=t.closest('[data-cdel]');if(el){const k=el.dataset.cdel;if(k&&S.budget[k]&&!catInUse(k)){removeCat(k);ui.catDel=null;catsChanged(`${k} removed`)}else{ui.catDel=k||null;openCats()}return}
   el=t.closest('[data-cdelgo]');if(el){const k=el.dataset.cdelgo,to=$('#cmvto').value;if(S.budget[k]&&S.budget[to]){removeCat(k,to);ui.catDel=null;catsChanged(`${k} removed. Its spending now counts in ${to}`)}return}
@@ -1160,7 +1281,7 @@ document.addEventListener('click',e=>{
   if(a==='receive'){ui.dir='in';go('transfer');return}
   if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Writes a short message asking someone to pay you. Paste it into WhatsApp, SMS or email.</div><form class="form" id="reqform"><label class="f">From<select class="in" id="rwho">${S.contacts.map(c=>`<option>${esc(c.n)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="ramt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label><label class="f">What for (optional)<input class="in" id="rfor" maxlength="60" placeholder="e.g. Your half of the light bill"></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('copy')}Copy request message</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
   if(a==='addcard'){modal(`<h3>Add a card</h3><div class="hint">For example Savings or a Joint account. Only the main account is used by the budget. Joint cards are the only ones your partner can see.</div><form id="newcardform" class="form" style="margin-top:12px"><label class="f">Account name<input class="in" id="nc-n" maxlength="30" required placeholder="e.g. Savings" autofocus></label><label class="f">Balance (G$)<input class="in" id="nc-b" type="number" min="0" step="any" value="0"></label><label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="nc-j" style="width:auto;margin:0"> Joint card, shared with my partner</label><button class="btn dark" type="submit" style="margin-top:10px;width:100%">Add card</button></form>`);return}
-  if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(goalCard()&&goalCard().id===c.id&&goalsHeld()>0){toast('This card holds your savings goals. Take the money out of the goals first');return}if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
+  if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(c.joint&&jTotal()){toast('This card shows your Joint plans. Take the money out there first');return}if(goalCard()&&goalCard().id===c.id&&goalsHeld()>0){toast('This card holds your savings goals. Take the money out of the goals first');return}if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
   if(a==='rates'){toast(`Live rates are not connected. Using fixed rates: US$1 = G$209, €1 = US$${S.rate.EUR}, £1 = US$${S.rate.GBP}`);return}
 });
 document.addEventListener('change',e=>{
@@ -1223,7 +1344,7 @@ document.addEventListener('submit',e=>{
     cardEdit(c.id,x=>{x.bal=+((+x.bal||0)+(out?-a:a)).toFixed(2);(x.hist=x.hist||[]).unshift({ts:Date.now(),amt:out?-a:a,note,from:fromMain||undefined});x.hist=x.hist.slice(0,30)});
     if(fromMain){S.acc.GYD=+(S.acc.GYD-a).toFixed(2);S.tx.unshift({n:'Moved to '+c.name,c:'Transfer',a:-a,d:'Today',cy:S.cycle.id,ts:Date.now()});save()}
     refresh();toast(`${fmt(a,'G$')} ${out?'withdrawn from':'added to'} ${c.name}`);return}
-  if(f.id==='cardform'){const n=$('#cd-n').value.trim(),b=Math.max(0,+$('#cd-b').value||0);if(cardEdit(f.dataset.id,c=>{if(n)c.name=n;if(!c.main)c.bal=b})){refresh();toast('Account saved')}return}
+  if(f.id==='cardform'){const n=$('#cd-n').value.trim(),b=Math.max(0,+$('#cd-b').value||0);if(cardEdit(f.dataset.id,c=>{if(n)c.name=n;if(!c.main&&!c.joint&&!jload().cards.some(j=>j.id==c.id))c.bal=b})){refresh();toast('Account saved')}return}
   if(f.id==='newcardform'){const n=$('#nc-n').value.trim();if(!n)return;const id=Date.now(),cls=['black','orange','blue'][allCards().length%3],card={id,cls,name:n,bal:Math.max(0,+$('#nc-b').value||0),last:String(1000+Math.floor(Math.random()*9000)),exp:'11/30',holder:myName()};
     if($('#nc-j')&&$('#nc-j').checked){const jj=jload();jj.cards.push(card);jsave(jj)}else{S.cards.push(card);save()}
     ui.sel=id;ui.newId=id;closeModal();refresh();ui.newId=null;toast('New card added');setTimeout(()=>$('.cards')?.scrollTo({left:1e5,behavior:'smooth'}),50);return}
@@ -1231,6 +1352,12 @@ document.addEventListener('submit',e=>{
   if(f.id==='goalmoney'){const i=+f.dataset.i,g=S.goals[i],a=+$('#gm-a').value,out=e.submitter&&e.submitter.value==='out',fromMain=$('#gm-f').checked;if(!g||!(a>0))return;
     const er=goalMoney(i,a,out,$('#gm-n').value.trim(),fromMain);if(er){toast(er);return}
     save();refresh();openGoal(i);toast(`${fmt(a)} ${out?'taken out of':'added to'} ${g.n}`);return}
+  if(f.id==='jnew'){const n=$('#jn-n').value.trim(),t=+$('#jn-t').value,m=Math.max(0,+$('#jn-m').value||0);if(!n||!(t>0))return;const id=jid('p');ui.jplan=id;jWrite('plans',id,{name:n,target:t,monthly:m||null,who:jMine(),ts:Date.now()});refresh();toast(`${n} created`);return}
+  if(f.id==='jpedit'){const id=f.dataset.id,p=J.plans[id],n=$('#je-n').value.trim(),t=+$('#je-t').value;if(!p||!n||!(t>0))return;jWrite('plans',id,{...p,name:n,target:t,monthly:Math.max(0,+$('#je-m').value||0)||null});ui.jedit=null;refresh();toast('Plan saved');return}
+  if(f.id==='jform'){const pid=$('#jf-p').value,a=+$('#jf-a').value,out=e.submitter&&e.submitter.value==='out',fromMain=$('#jf-f').checked;if(!(a>0))return;
+    const have=jSaved(pid);if(out&&a>have+0.005){toast(`${pid?jPlanName(pid):'Not assigned'} only holds ${fmt(have)}`);return}
+    if(!out&&fromMain&&a>S.acc.GYD){toast('Your Salary account does not have that much');return}
+    ui.jplan=pid;jMove(pid,a,out,$('#jf-n').value.trim(),fromMain);refresh();$('#jf-a')&&($('#jf-a').value='');toast(`${fmt(a)} ${out?'taken from':'added to'} ${pid?jPlanName(pid):'joint savings'}`);return}
   if(f.id==='catadd'){const n=$('#ca-n').value.trim().replace(/\s+/g,' '),er=catNameErr(n);if(er){toast(er);return}
     S.budget[n]={limit:Math.max(0,+$('#ca-l').value||0),spent:0,fixed:$('#ca-f').checked};catsChanged(`${n} added`);setTimeout(()=>$('#ca-n')?.focus(),30);return}
   if(f.id==='qaform'){saveQuick();return}
@@ -1403,6 +1530,7 @@ function prepState(){
 }
 prepState();
 function startApp(){
+  jLoad();jConnect();
   cloudSync();
   paintAvatar();const autoPaid=payDueBills();const fb=$('#qafab');if(fb)fb.hidden=false;
   if(autoPaid.length)setTimeout(()=>toast(`Autopay: ${listAnd(autoPaid.map(b=>b.name))} recorded as paid`),1600);
