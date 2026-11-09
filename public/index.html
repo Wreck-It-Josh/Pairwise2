@@ -788,9 +788,9 @@ const dayLabel=()=>{const k=ui.day||dayKey(Date.now());return dayKey(Date.now())
 const lastM=()=>{const n=new Date(),p=new Date(n.getFullYear(),n.getMonth()-1,1),r=monthSums(p.getFullYear());return {I:Math.max(0,r.I[p.getMonth()]),E:Math.max(0,r.E[p.getMonth()])}};
 const PER={
   month:{income:()=>tgIncome()+S.incomeExtra,exp:()=>spentTotal(),label:'This Month',inc:'Set in Setup',earn:tgIncome()},
-  last:{income:()=>S.fresh?lastM().I:G(458000),exp:()=>S.fresh?lastM().E:G(344000),label:'Last Month',inc:'+3.4% vs prior month',earn:G(458000)},
+  last:{income:()=>S.fresh?lastM().I:G(458000),exp:()=>S.fresh?lastM().E:G(344000),label:'Last Month',inc:'',earn:G(458000)},
   day:{income:()=>dayTx().filter(t=>t.c==='Income').reduce((q,t)=>q+t.a,0),exp:()=>-dayTx().filter(t=>t.c!=='Income').reduce((q,t)=>q+t.a,0),get label(){return dayLabel()},inc:'',earn:0},
-  year:{income:()=>sum(INC),exp:()=>sum(EXP),label:'This Year',inc:'+11.2% vs last year',earn:0}
+  year:{income:()=>sum(INC),exp:()=>sum(EXP),label:'This Year',inc:'',earn:0}
 };
 const ui={route:'dashboard',tab:'overview',period:'month',cur:'GYD',chk:'All',list:'apt',idea:'',shop:false,fin:false,share:false,newList:false,ren:false,delc:false,lanim:false,rail:'MMG',dir:'out',cleoWhy:false,cc:false,drill:null,goalsOpen:false,range:6,flip:null,contact:0,earnRange:'This Year'};
 if(S.theme)document.documentElement.setAttribute('data-theme',S.theme);
@@ -832,12 +832,11 @@ const INC0=[395,405,400,425,415,440,432,445,452,466,458,480].map(v=>G(v*1000)),E
 const INC=INC0.slice(),EXP=EXP0.slice();
 function monthSums(y){const I=Array(12).fill(0),E=Array(12).fill(0);(S.tx||[]).forEach(t=>{const d=new Date(txTs(t));if(d.getFullYear()!==y)return;const m=d.getMonth();if(t.c==='Income')I[m]+=t.a;else E[m]+=-t.a});return {I,E}}
 function applyFresh(){const n=new Date(),r=S.fresh?monthSums(n.getFullYear()):null;INC0.forEach((v,i)=>{INC[i]=S.fresh?Math.max(0,r.I[i]):v;EXP[i]=S.fresh?Math.max(0,r.E[i]):EXP0[i]});if(S.fresh&&S.income>0&&r)INC[n.getMonth()]=Math.max(INC[n.getMonth()],S.income/GY)}
-const dl=x=>S.fresh?'':x;
 
 /* ---------- views ---------- */
 function stat(t,icn,val,fmtTag,delta,up,vals,color,dark){
   return `<div class="card"><h3><span class="ico">${ic(icn)}</span>${t}</h3><div class="mid" data-count="${val}" data-f="${fmtTag}">0</div>
-  <span class="delta ${up?'up':'dn'}"><b>${ic(up?'up':'down')}</b>${delta}</span>${spark(vals,color,dark)}</div>`;
+  ${delta?`<span class="delta ${up?'up':'dn'}"><b>${ic(up?'up':'down')}</b>${delta}</span>`:''}${spark(vals,color,dark)}</div>`;
 }
 function balanceCard(){
   const sym={GYD:'G$',USD:'US$',EUR:'€',GBP:'£'}[ui.cur],rate=S.rate[ui.cur];
@@ -846,7 +845,6 @@ function balanceCard(){
     <div class="row"><h3><span class="ico">${ic('coin')}</span>Total Balance</h3>
       <label class="sel sm"><select data-sel="cur" aria-label="Currency">${['GYD','USD','EUR','GBP'].map(c=>`<option ${c===ui.cur?'selected':''}>${c}</option>`).join('')}</select></label></div>
     <div class="big" data-count="${total()/rate}" data-f="${sym}">0</div>
-    ${dl(`<span class="delta"><b>${ic('up')}</b>+${fmt(G(85000))} vs last month</span>`)}
     <div class="dots" aria-hidden="true">${dots}</div>
     <div class="btns"><button class="btn dark" data-act="receive">${ic('down')}Receive Money</button><button class="btn" data-go="transfer">${ic('send')}Send Money</button><button class="btn" data-act="request">${ic('req')}Payment Request</button></div>
   </div>`;
@@ -855,22 +853,21 @@ function earningCard(range){
   const base=S.fresh?INC.slice():(ui.earnRange==='Last Year'?EARN.map(v=>v*.87):EARN);
   return `<div class="card">
     <div class="row"><h3>Earning Overview</h3><label class="sel sm"><select data-sel="earnRange" aria-label="Range">${['This Year','Last Year'].map(o=>`<option ${o===ui.earnRange?'selected':''}>${o}</option>`).join('')}</select></label></div>
-    <div class="row" style="justify-content:flex-start;gap:12px;margin-top:6px"><div class="mid" data-count="${sum(base)}" data-f="$" style="margin:6px 0">0</div>${dl(`<span class="delta"><b>${ic('up')}</b>+12.4% YoY</span>`)}</div>
+    <div class="row" style="justify-content:flex-start;gap:12px;margin-top:6px"><div class="mid" data-count="${sum(base)}" data-f="$" style="margin:6px 0">0</div></div>
     ${barChart(base,10,MON)}</div>`;
 }
 function dashboard(){
   const p=PER[ui.period],inc=p.income(),exp=p.exp(),net=inc-exp;
-  const head=`<div class="page-head"><div><h1>Financial Overview</h1><div class="sub">Real-time financial insights to help you make informed decisions</div></div>
+  const head=`<div class="page-head"><div><h1>Financial Overview</h1><div class="sub">Your income, spending and savings at a glance</div></div>
     <label class="sel">${ic('cal')}<select data-sel="period" aria-label="Period">${Object.entries(PER).map(([k,v])=>`<option value="${k}" ${k===ui.period?'selected':''}>${v.label}</option>`).join('')}</select></label><label class="sel">${ic('cal')}<input type="date" data-day aria-label="Pick a date" value="${ui.day||dayKey(Date.now())}" max="${dayKey(Date.now())}" style="border:0;background:transparent;font:inherit;color:inherit"></label></div>
-    <div class="tabs" role="tablist">${['overview','transactions','budgets','reports'].map(t=>`<button class="tab" role="tab" aria-selected="${ui.tab===t}" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}<span class="live"><i></i>Live Update</span></div>`;
+    <div class="tabs" role="tablist">${['overview','transactions','budgets','reports'].map(t=>`<button class="tab" role="tab" aria-selected="${ui.tab===t}" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>`;
   if(ui.tab==='transactions')return head+`<div class="card">${(ui.period==='day'?dayTx():S.tx).map(txRow).join('')||'<div class="hint" style="padding:10px 0">Nothing recorded on this day.</div>'}</div>`;
   if(ui.tab==='budgets')return head+`<div class="grid g-2">${Object.entries(S.budget).map(([k,b])=>budgetCard(k,b,true)).join('')}</div>`;
   if(ui.tab==='reports')return head+`<div class="grid g-2"><div class="card"><h3>Summary · ${p.label}</h3><div class="kv"><span>Income</span><b>${fmt(inc)}</b><span>Expenses</span><b>${fmt(exp)}</b><span>Net profit</span><b>${fmt(net)}</b><span>Savings rate</span><b>${(inc?net/inc*100:0).toFixed(1)}%</b><span>Avg daily spend</span><b>${fmt(exp/30)}</b></div></div><div class="card">${(()=>{const e=Object.entries(S.budget).sort((a,b)=>b[1].spent-a[1].spent);return `<h3>Spending by category</h3>${e.map(([k,b])=>`<div class="cat" style="margin-top:14px"><div class="row"><b>${k}</b><span>${fmt(b.spent)}</span></div><div class="meter"><i style="width:${b.spent/e[0][1].spent*100}%"></i></div></div>`).join('')}`})()}</div></div>`;
   return head+nudgeCards()+`<div class="grid g-dash"><div class="stack">${balanceCard()}${earningCard()}</div>
-    <div class="card c1"><h3><span class="ico">${ic('down')}</span>Income</h3><div class="mid" data-count="${inc}" data-f="$">0</div><span class="delta up"><b>${ic('up')}</b>${S.fresh?'No history yet':p.inc}</span></div>
-    <div class="card c3"><h3><span class="ico">${ic('card')}</span>Total Expenses</h3><div class="mid" data-count="${exp}" data-f="$">0</div>${dl(`<span class="delta dn"><b>${ic('up')}</b>+3.2% vs last month</span>`)}</div>
-    <div class="card c1 r2"><h3><span class="ico">${ic('pie')}</span>Net Profit</h3><div class="mid" data-count="${net}" data-f="$">0</div><span class="delta up"><b>${ic('up')}</b>${(inc?net/inc*100:0).toFixed(0)}% of income kept</span>
-      <div class="seg"><div class="s1"><div class="bar"><i data-w="58"></i></div><b>Saved</b>${fmt0(net*.58)}</div><div class="s2"><div class="bar"><i data-w="27"></i></div><b>Invested</b>${fmt0(net*.27)}</div><div class="s3"><div class="bar"><i data-w="15"></i></div><b>Cash</b>${fmt0(net*.15)}</div></div></div>
+    <div class="card c1"><h3><span class="ico">${ic('down')}</span>Income</h3><div class="mid" data-count="${inc}" data-f="$">0</div>${p.inc?`<span class="delta up"><b>${ic('up')}</b>${p.inc}</span>`:''}</div>
+    <div class="card c3"><h3><span class="ico">${ic('card')}</span>Total Expenses</h3><div class="mid" data-count="${exp}" data-f="$">0</div></div>
+    <div class="card c1 r2"><h3><span class="ico">${ic('pie')}</span>Net Profit</h3><div class="mid" data-count="${net}" data-f="$">0</div><span class="delta up"><b>${ic('up')}</b>${(inc?net/inc*100:0).toFixed(0)}% of income kept</span></div>
     <div class="card report c3 r2"><h4>Financial Report</h4><div class="ttl">Total Income Forecast</div><div style="font-size:30px;font-weight:600;letter-spacing:-.03em" data-count="${inc*12}" data-f="$">0</div>
       <div class="stats"><div><span>Weekly</span><b>${fmt0(inc/4.3)}</b></div><div><span>Monthly</span><b>${fmt0(inc)}</b></div><div><span>Yearly</span><b>${fmt0(inc*12)}</b></div></div></div>
     <div class="goals"><div class="head" data-act="goals" role="button" tabindex="0" aria-expanded="${ui.goalsOpen}"><span class="ico">${ic('target')}</span><strong>My Savings Goals</strong><button class="add" data-act="addgoal"><i>+</i>Add Goal</button></div>
@@ -885,10 +882,10 @@ function analytics(){
   return `<div class="page-head"><div><h1>Analytics</h1><div class="sub">Understand where your money comes from and where it goes</div></div>
     <label class="sel">${ic('cal')}<select data-sel="period" aria-label="Period">${Object.entries(PER).map(([k,v])=>`<option value="${k}" ${k===ui.period?'selected':''}>${v.label}</option>`).join('')}</select></label></div>
   <div class="grid g-4" style="margin-bottom:16px">
-    ${stat('Income','down',PER[ui.period].income(),'$',S.fresh?'':'+4.8% vs last period',true,INC,'#e8622a')}
-    ${stat('Expenses','card',PER[ui.period].exp(),'$',S.fresh?'':'+3.2% vs last period',false,EXP,'var(--ink)',true)}
-    ${stat('Savings Rate','pct',(PER[ui.period].income()?(1-PER[ui.period].exp()/PER[ui.period].income())*100:0),'%',S.fresh?'':'+2.1 pts',true,INC.map((v,i)=>v?(1-EXP[i]/v)*100:0),'#e8622a')}
-    ${stat('Avg. Daily Spend','clock',PER[ui.period].exp()/30,'$',S.fresh?'':'-1.8% vs last period',true,EXP.map(v=>v/30),'var(--ink)',true)}
+    ${stat('Income','down',PER[ui.period].income(),'$','',true,INC,'#e8622a')}
+    ${stat('Expenses','card',PER[ui.period].exp(),'$','',false,EXP,'var(--ink)',true)}
+    ${stat('Savings Rate','pct',(PER[ui.period].income()?(1-PER[ui.period].exp()/PER[ui.period].income())*100:0),'%','',true,INC.map((v,i)=>v?(1-EXP[i]/v)*100:0),'#e8622a')}
+    ${stat('Avg. Daily Spend','clock',PER[ui.period].exp()/30,'$','',true,EXP.map(v=>v/30),'var(--ink)',true)}
   </div>
   <div class="grid g-2">
     <div class="card"><div class="row"><div><h3>Cash Flow</h3><div class="hint">Income versus expenses over time</div></div>
@@ -928,7 +925,7 @@ function wallet(){
         <div class="face back"><div class="mag"></div><div class="sig">***</div><small>Card number ending ${c.last}. Never share your CVV.</small></div></div></div>`).join('')}</div></div>
   </div>
   <div class="grid g-2">
-    <div class="card"><div class="row"><div><h3>Currencies</h3><div class="hint">Your live balances</div></div><button class="link" data-act="rates">${ic('refresh')}Refresh rates</button></div>
+    <div class="card"><div class="row"><div><h3>Currencies</h3><div class="hint">Your balances in each currency</div></div><button class="link" data-act="rates">${ic('refresh')}About rates</button></div>
       <div style="margin-top:8px">${cur.map(([k,n,col,s],ci)=>`<div class="cur" style="--i:${ci}"><div class="flag" style="background:${col}">${k.slice(0,2)}</div><div><b>${k}</b><small>${n}</small></div><div class="meter"><i data-w="${Math.max(3,S.acc[k]*S.rate[k]/tot*100).toFixed(1)}"></i></div><div class="amt" data-count="${S.acc[k]}" data-f="${s}">0</div></div>`).join('')}</div></div>
     <div class="card"><div class="row"><div><h3>Upcoming Bills</h3><div class="hint">Due in the next 2 weeks</div></div><button class="btn sm dark" data-act="setup">Edit bills</button></div>
       <div style="margin-top:8px">${S.bills.map(b=>`<div class="bill ${b.paid?'paid':''}"><div class="ic-b">${ic(b.ic)}</div><div><b>${esc(b.name)}</b><small>${b.paid?'Paid':`${b.due} · in ${b.days} days`}</small></div><b>${fmt(b.amt)}</b><button class="sw" role="switch" aria-checked="${!!b.auto}" aria-label="Autopay ${esc(b.name)}" data-bill="${b.id}"></button></div>`).join('')}</div>
@@ -1643,12 +1640,11 @@ document.addEventListener('click',e=>{
   if(a==='chat-close'){openChat(false);return}
   if(a==='mclose'){if(t.classList.contains('modal-bg')||t.closest('[data-x]'))closeModal();return}
   if(a==='mclose2'){closeModal();return}
-  if(a==='receive'){modal(`<h3>Receive money</h3><div class="hint">Share these details to get paid in GYD.</div><div class="kv"><span>Name</span><b>${esc(myName())}</b><span>Account</span><b>0048 2210 9031</b><span>Routing</span><b>021 000 089</b><span>Bank</span><b>Codear Bank</b></div><div class="btns"><button class="btn dark" data-act="copyacct">${ic('copy')}Copy details</button><button class="btn" data-act="mclose2">Close</button></div>`);return}
-  if(a==='copyacct'){const txt=myName()+' · Account 0048 2210 9031 · Routing 021 000 089';(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Details copied'),()=>toast('Copy blocked. Select the details manually.'));return}
-  if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Ask someone to pay you.</div><form class="form" id="reqform"><label class="f">From<select class="in" id="rwho">${S.contacts.map(c=>`<option>${esc(c.n)}</option>`).join('')}</select></label><label class="f">Amount<input class="in" id="ramt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('req')}Send request</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
+  if(a==='receive'){ui.dir='in';go('transfer');return}
+  if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Writes a short message asking someone to pay you. Paste it into WhatsApp, SMS or email.</div><form class="form" id="reqform"><label class="f">From<select class="in" id="rwho">${S.contacts.map(c=>`<option>${esc(c.n)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="ramt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label><label class="f">What for (optional)<input class="in" id="rfor" maxlength="60" placeholder="e.g. Your half of the light bill"></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('copy')}Copy request message</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
   if(a==='addcard'){modal(`<h3>Add a card</h3><div class="hint">For example Savings or a Joint account. Only the main account is used by the budget. Joint cards are the only ones your partner can see.</div><form id="newcardform" class="form" style="margin-top:12px"><label class="f">Account name<input class="in" id="nc-n" maxlength="30" required placeholder="e.g. Savings" autofocus></label><label class="f">Balance (G$)<input class="in" id="nc-b" type="number" min="0" step="any" value="0"></label><label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="nc-j" style="width:auto;margin:0"> Joint card, shared with my partner</label><button class="btn dark" type="submit" style="margin-top:10px;width:100%">Add card</button></form>`);return}
   if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
-  if(a==='rates'){Object.keys(S.rate).forEach(k=>{if(k==='EUR'||k==='GBP')S.rate[k]=+(S.rate[k]*(1+(Math.random()-.5)*.01)).toFixed(4)});save();refresh();$('.link svg')?.classList.add('spin');$$('.cur .amt,.cur .meter').forEach(x=>x.classList.add('flash'));toast('Rates refreshed (simulated)');return}
+  if(a==='rates'){toast(`Live rates are not connected. Using fixed rates: US$1 = G$209, €1 = US$${S.rate.EUR}, £1 = US$${S.rate.GBP}`);return}
 });
 document.addEventListener('change',e=>{
   const dd=e.target.closest('[data-day]');if(dd){if(dd.value){ui.day=dd.value;ui.period='day';refresh()}return}
@@ -1711,7 +1707,9 @@ document.addEventListener('submit',e=>{
   if(f.id==='expform'){
     const k=$('#ecat').value,amt=+$('#eamt').value,d=$('#edesc').value.trim();
     addExpense(k,amt,d,$('#epaid')?.value,$('#efor')?.value);refresh();toast(`${fmt(amt,'G$')} added to ${k}`);return}
-  if(f.id==='reqform'){const who=$('#rwho').value,amt=+$('#ramt').value;closeModal();toast(`Request for ${fmt(amt,'G$')} sent to ${who}`);return}
+  if(f.id==='reqform'){const who=$('#rwho').value,amt=+$('#ramt').value,why=$('#rfor').value.trim();if(!(amt>0))return;
+    const txt=`Hi ${who.split(' ')[0]}, could you send me ${fmt(amt,'G$')}${why?' for '+why:''}? Thanks, ${first()}`;
+    (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>{closeModal();toast('Request message copied. Paste it to send.')},()=>toast('Copy blocked. Try again or type it yourself.'));return}
 });
 $('#chatform').addEventListener('submit',()=>{});
 $('#quick').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!AI.busy)ask(b.textContent)});
@@ -1768,7 +1766,7 @@ function authHTML(){
     <div class="lm"><div class="lm-bubble">${T.hi}</div><div class="lm-run"><div class="lm-hop">${lmSvg()}</div></div></div>
     <div class="acard">
       <div class="promo"><div><h2>Your money, in one calm place.</h2><p>Track balances, budgets and your apartment checklist from a single dashboard.</p></div>
-        <div class="pstat"><div class="p" style="--i:0"><span class="ico">${ic('wallet')}</span><div><b>Live balances</b>GYD, USD, EUR and GBP</div></div>
+        <div class="pstat"><div class="p" style="--i:0"><span class="ico">${ic('wallet')}</span><div><b>All your balances</b>GYD, USD, EUR and GBP</div></div>
         <div class="p" style="--i:1"><span class="ico">${ic('pie')}</span><div><b>Smart budgets</b>Limits that warn you early</div></div>
         <div class="p" style="--i:2"><span class="ico">${ic('check')}</span><div><b>Apartment checklist</b>${n} items across 6 rooms</div></div></div></div>
       <div class="aform">
