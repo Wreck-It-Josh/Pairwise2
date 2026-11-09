@@ -316,6 +316,18 @@ function moodOf(){
   if(over.length||used-c.pace>.08)m='stressed';else if(ahead.length||near.length||used-c.pace>.03)m='worried';
   return {m,over,ahead,near,used,c,cats,tl,ts};
 }
+/* everyday money: what is left in flexible categories, less any fixed cost that ran over; unpaid rent and bills are not spendable */
+function flexLeft(M){
+  const f=M.cats.filter(x=>!x.fixed),fx=M.cats.filter(x=>x.fixed);
+  const left=sum(f.map(x=>x.b.limit-x.b.spent))-sum(fx.map(x=>Math.max(0,x.b.spent-x.b.limit)));
+  return {lim:sum(f.map(x=>x.b.limit)),rem:Math.max(0,left),fixed:fx.map(x=>x.k)};
+}
+const listAnd=a=>a.length>1?a.slice(0,-1).join(', ')+' and '+a[a.length-1]:a.join('');
+function assignHTML(tl){
+  const inc=+S.income||0,un=inc-tl;
+  if(!(inc>0))return `<div class="hint" style="margin-top:10px">Add your monthly income in Setup to see what is left to assign.</div><button class="btn sm" style="margin-top:8px" data-act="setup">Set up</button>`;
+  return `<div class="hint" style="margin-top:10px">Income ${fmt0(inc)} · Assigned ${fmt0(tl)}</div><span class="pchip ${un<0?'bad':un===0?'good':''}" style="display:inline-block;margin-top:6px">${un<0?`${fmt0(-un)} more than you earn`:un>0?`${fmt0(un)} left to assign`:'Every dollar has a job'}</span>`;
+}
 function insight(html){
   const M=moodOf(),B=t=>html?`<b>${t}</b>`:t,w=M.over[0]||M.ahead[0]||M.near[0];
   const tail=M.over.length?`${B(M.over[0].k)} is already over its limit.`:w?`${B(w.k)} is the one to watch.`:'Everything is on track.';
@@ -377,7 +389,7 @@ function drillHTML(k){
   <div class="btns"><button class="btn dark" data-act="mclose2">Close</button></div>`;
 }
 function budget(){
-  const M=moodOf(),c=M.c,tl=M.tl,ts=M.ts,pct=tl>0?Math.min(1,ts/tl):0,C=2*Math.PI*58,rem=Math.max(0,tl-ts),per=rem/c.left;
+  const M=moodOf(),c=M.c,tl=M.tl,ts=M.ts,pct=tl>0?Math.min(1,ts/tl):0,C=2*Math.PI*58,F=flexLeft(M),rem=F.rem,per=rem/c.left;
   const w=M.over[0]||M.ahead[0]||M.near[0];
   const lab={happy:'Feeling good',worried:'Keeping an eye on things',stressed:'A bit stressed'}[M.m];
   const head=M.m==='happy'?'You are right on track.':M.m==='stressed'?`${(M.over[0]||w||{k:'Spending'}).k} is over its limit.`:`${w?w.k:'Spending'} is moving faster than the month.`;
@@ -391,14 +403,15 @@ function budget(){
   return `<div class="page-head"><div><h1>Budget</h1><p class="insight">${insight(true)}</p></div>${ctrl}</div>
   <div class="grid g-2" style="margin-bottom:16px">
     <div class="card hero"><h4>Safe to spend today</h4><div class="hv" data-count="${per}" data-f="$">0</div>
-      <div class="hs">${rem>0?`a day for the next ${c.left} day${c.left>1?'s':''} · ${fmt(rem)} left of ${fmt(tl)}`:'Your budget is used up. Anything more goes over.'}</div>
+      <div class="hs">${rem>0?`a day for the next ${c.left} day${c.left>1?'s':''} · ${fmt(rem)} left of ${fmt(F.lim)} for everyday spending`:'Your everyday budget is used up. Anything more goes over.'}</div>
+      ${F.fixed.length?`<div class="hs">${listAnd(F.fixed)} ${F.fixed.length>1?'are':'is'} set aside and not counted here.</div>`:''}
       <div class="dd" role="img" aria-label="Day ${c.el} of ${c.len}">${dots}</div><div class="hs" style="margin-top:6px">Day ${c.el} of ${c.len} · ${dfmt(c.start)} to ${dfmt(c.end)}</div></div>
     <div class="card cleo ${M.m}"><div class="cleo-art">${cleoSvg(M.m)}</div><div class="cleo-body"><span class="mood">${lab}</span><h3 class="cl-h">${head}</h3><p class="cl-t">${tip}</p>
       ${ui.cleoWhy&&why.length?`<ul class="cl-why">${why.join('')}</ul>`:''}
       <div class="btns" style="margin-top:12px"><button class="btn sm" data-why>${ui.cleoWhy?'Hide details':'Why?'}</button><button class="btn sm dark" data-act="cleo-ask">${ic('send')}Ask Cleo</button></div></div></div></div>
   <div class="grid g-2" style="margin-bottom:16px"><div class="card row" style="gap:24px;flex-wrap:wrap;justify-content:flex-start">
     <svg class="ring" viewBox="0 0 150 150" role="img" aria-label="${Math.round(pct*100)}% of budget used"><circle cx="75" cy="75" r="58" fill="none" stroke="var(--line)" stroke-width="14"/><circle cx="75" cy="75" r="58" fill="none" stroke="${ts>tl?'var(--bad)':'var(--accent)'}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${C*pct} ${C}" transform="rotate(-90 75 75)"/><text x="75" y="73" text-anchor="middle" font-size="24" font-weight="600" fill="var(--ink)">${Math.round(pct*100)}%</text><text x="75" y="92" text-anchor="middle" font-size="10.5" fill="var(--muted)">used</text></svg>
-    <div><h3>Monthly budget</h3><div class="mid" style="margin-bottom:2px">${fmt(tl-ts)}</div><div class="hint">left of ${fmt0(tl)}</div><div class="hint" style="margin-top:10px">Spent ${fmt(ts)} so far</div></div></div>
+    <div><h3>Monthly budget</h3><div class="mid" style="margin-bottom:2px">${fmt(tl-ts)}</div><div class="hint">left of ${fmt0(tl)}</div><div class="hint" style="margin-top:10px">Spent ${fmt(ts)} so far</div>${assignHTML(tl)}</div></div>
   <div class="card"><h3>Add expense</h3><form class="form" id="expform" style="margin-top:12px"><div class="two"><label class="f">Category<select class="in" id="ecat">${Object.keys(S.budget).map(k=>`<option>${k}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="eamt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label></div>
   <label class="f">Description<input class="in" id="edesc" maxlength="50" placeholder="e.g. Lunch with team" required></label><button class="btn orange" type="submit" style="justify-content:center">${ic('plus')}Add expense</button></form></div></div>
   ${aptCard()}
@@ -685,11 +698,18 @@ function openSetup(){
   <h4 style="margin:6px 0">Monthly income (G$)</h4><label class="f">Total income per month<input class="in" id="su-inc" type="number" min="0" step="any" value="${S.income}"></label>
   <h4 style="margin:14px 0 6px">What the accounts hold now</h4><div class="two"><label class="f">Cash and bank (G$)<input class="in" id="su-gyd" type="number" min="0" step="any" value="${S.acc.GYD}"></label><label class="f">USD (US$)<input class="in" id="su-usd" type="number" min="0" step="any" value="${S.acc.USD}"></label></div><div class="two"><label class="f">EUR (€)<input class="in" id="su-eur" type="number" min="0" step="any" value="${S.acc.EUR}"></label><label class="f">GBP (£)<input class="in" id="su-gbp" type="number" min="0" step="any" value="${S.acc.GBP}"></label></div>
   <h4 style="margin:14px 0 6px">Fixed bills</h4>${rows.map(bill).join('')}<div class="hint">Leave a row empty to remove that bill.</div>
-  <h4 style="margin:14px 0 6px">Monthly spending limits (G$)</h4><div class="two">${lim}</div>
+  <h4 style="margin:14px 0 6px">Monthly spending limits (G$)</h4><div class="hint" id="su-left" aria-live="polite" style="margin-bottom:8px"></div><div class="two">${lim}</div>
   <label class="f" style="flex-direction:row;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="su-clear" ${S.setupDone?'':'checked'}> Clear the sample transactions and start fresh</label></div>
   <button class="btn dark" type="submit" style="margin-top:14px;width:100%">Save</button></form>`);
   const m=$('#modalroot .modal');if(m)m.style.width='min(560px,100%)';
+  suLeft();
 }
+function suLeft(){
+  const el=$('#su-left');if(!el)return;
+  const inc=Math.max(0,+$('#su-inc').value||0),tl=sum($$('[data-lim]').map(i=>Math.max(0,+i.value||0))),un=inc-tl;
+  el.innerHTML=inc>0?`Assigned ${fmt0(tl)} of ${fmt0(inc)} income · <b class="${un<0?'bad':'good'}">${un<0?`${fmt0(-un)} more than you earn`:un>0?`${fmt0(un)} left to assign`:'every dollar has a job'}</b>`:'Enter your monthly income above to see what is left to assign.';
+}
+document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('#setupform'))suLeft()});
 function saveSetup(){
   const n=id=>Math.max(0,+$(id).value||0);
   S.income=n('#su-inc');
@@ -803,7 +823,7 @@ const closeModal=()=>$('#modalroot').innerHTML='';
 const QUICK=['What is my balance?','Where am I spending most?','Any bills due?','How are my goals?'];
 function reply(q){
   q=q.toLowerCase();
-  if(/safe|per day|a day|daily/.test(q)){const M=moodOf(),rm=Math.max(0,M.tl-M.ts);return rm>0?`You can safely spend about ${fmt(rm/M.c.left)} a day for the next ${M.c.left} days and still finish inside your ${fmt(M.tl)} budget.`:'Your budget is used up for this cycle, so anything more goes over.'}
+  if(/safe|per day|a day|daily/.test(q)){const M=moodOf(),F=flexLeft(M),rm=F.rem;return rm>0?`You can safely spend about ${fmt(rm/M.c.left)} a day for the next ${M.c.left} days. That keeps your everyday spending inside its ${fmt(F.lim)} budget${F.fixed.length?`, with ${listAnd(F.fixed)} set aside`:''}.`:'Your everyday budget is used up for this cycle, so anything more goes over.'}
   const top=Object.entries(S.budget).sort((a,b)=>b[1].spent-a[1].spent)[0];
   if(/balance|total|how much (do i|money)/.test(q))return `Your total balance is ${fmt(total())}: ${fmt(S.acc.GYD,'G$')} in GYD, ${fmt(S.acc.USD,'US$')} in USD, ${fmt(S.acc.EUR,'€')} in EUR and ${fmt(S.acc.GBP,'£')} in GBP.`;
   if(/spend|spent|expens|most/.test(q))return `${top[0]} is your biggest category at ${fmt(top[1].spent)} this month. Total expenses are ${fmt(spentTotal())}.`;
@@ -844,6 +864,8 @@ function aiContext(){
   L.push(`BUDGET CYCLE: started ${S.cycle.start}; ${c.left} days left; ${pc(c.pace)} of the cycle has passed.`);
   L.push('CATEGORIES:');M.cats.forEach(x=>L.push(`- ${x.k}: limit ${fmt(x.b.limit)}, spent ${fmt(x.b.spent)} (${pc(x.p)} used)${x.fixed?', fixed cost':''}`));
   L.push(`TOTAL: budget ${fmt(M.tl)}, spent ${fmt(M.ts)}. Income recorded this month: ${fmt(PER.month.income())}.`);
+  {const F=flexLeft(M),inc=+S.income||0;L.push(`EVERYDAY SPENDING: ${fmt(F.rem)} left of ${fmt(F.lim)} in flexible categories, about ${fmt(F.rem/c.left)} a day (${listAnd(F.fixed)||'no categories'} set aside as fixed costs).`);
+   if(inc>0)L.push(`PLAN: monthly salary ${fmt(inc)}, limits assigned ${fmt(M.tl)}, ${inc-M.tl>=0?fmt(inc-M.tl)+' not yet assigned':fmt(M.tl-inc)+' more assigned than earned'}.`)}
   L.push(`BALANCES: ${fmt(S.acc.GYD,'G$')} GYD, ${fmt(S.acc.USD,'US$')} USD, ${fmt(S.acc.EUR,'€')} EUR, ${fmt(S.acc.GBP,'£')} GBP. Total about ${fmt(total())}. Exchange rate used: 209 G$ per US$1.`);
   if(S.goals&&S.goals.length){L.push('GOALS:');S.goals.forEach(g=>L.push(`- ${g.n}: ${fmt0(g.s)} saved of ${fmt0(g.t)}`))}
   const bills=(S.bills||[]).filter(b=>!b.paid);if(bills.length){L.push('BILLS COMING UP:');bills.forEach(b=>L.push(`- ${b.name} ${fmt(b.amt)} due ${b.due}${b.auto?' (auto-pay)':''}`))}
