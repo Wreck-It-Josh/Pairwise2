@@ -325,7 +325,7 @@ select.cell option{color:#111;background:#fff}
 .shoprow.done .nm{text-decoration:line-through;color:var(--muted)}
 .shopsec h3{display:flex;align-items:center;gap:10px}
 .shopsec{margin-bottom:14px}
-.pop{animation:popIn .35s cubic-bezier(.2,.9,.3,1.3) both}
+.pop,.popin{animation:popIn .35s cubic-bezier(.2,.9,.3,1.3) both}
 @keyframes popIn{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 
 /* ---- shared sync ---- */
@@ -557,7 +557,7 @@ p.insight b{color:var(--ink);font-weight:600}
 #main{padding-bottom:84px}
 .avatar.ini{background:var(--c,#e8622a);color:#fff;font:700 14px/1 inherit;font-family:inherit;display:grid;place-items:center;border:0;cursor:pointer}.avatar.ini::after{display:none}
 .pfhead{display:flex;align-items:center;gap:16px;margin-top:10px}.pfav{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:24px;flex:none}.pfname{font-size:22px;font-weight:700}
-.swr{display:flex;gap:10px;flex-wrap:wrap}.sw{width:32px;height:32px;border-radius:50%;border:2px solid var(--card);cursor:pointer;box-shadow:0 0 0 1px var(--line)}.sw[aria-pressed=true]{box-shadow:0 0 0 3px var(--ink)}
+.swr{display:flex;gap:10px;flex-wrap:wrap}.swc{width:32px;height:32px;border-radius:50%;border:2px solid var(--card);cursor:pointer;box-shadow:0 0 0 1px var(--line)}.swc[aria-pressed=true]{box-shadow:0 0 0 3px var(--ink)}
 .qafab{position:fixed;z-index:45;left:max(18px,env(safe-area-inset-left,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));height:46px;padding:0 20px;border:0;border-radius:999px;background:var(--dark);color:#fff;font:600 14px/1 inherit;font-family:inherit;box-shadow:0 10px 24px rgba(0,0,0,.25);cursor:pointer}
 .mascot{position:fixed;z-index:50;right:max(18px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));width:76px;cursor:pointer;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
 .mascot svg{width:76px;height:84px;animation:bob 3s ease-in-out infinite;filter:drop-shadow(0 10px 14px rgba(60,40,20,.2))}
@@ -935,8 +935,10 @@ function wallet(){
       <div class="hint" style="margin-top:10px">Toggle autopay. Bills are paid from your GYD balance on the due date.</div></div>
   </div>`;
 }
+/* entries logged in the app carry ts; older sample rows only have a "Mon D" label */
+const txDate=t=>t.ts?(dayKey(t.ts)===dayKey(Date.now())?'Today':dfmt(new Date(t.ts))):t.d;
 function txRow(t){const ini=t.n.split(/[ ·]/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
-  return `<div class="tx"><div class="av">${ini}</div><div><b>${esc(t.n)}</b><small>${esc(t.c)} · ${t.d}</small></div><div class="a ${t.a>0?'good':''}">${t.a>0?'+':''}${fmt(t.a)}</div></div>`}
+  return `<div class="tx"><div class="av">${ini}</div><div><b>${esc(t.n)}</b><small>${esc(t.c)} · ${txDate(t)}</small></div><div class="a ${t.a>0?'good':''}">${t.a>0?'+':''}${fmt(t.a)}</div></div>`}
 const RAILS=[['MMG','#e8622a'],['PayPal','#3c52d9'],['Bank','#2f9e6a'],['Cash','#8a8a90'],['Other','#8a5cf5']];
 const SYMS={GYD:'G$',USD:'US$',EUR:'€',GBP:'£'};
 const railCol=r=>(RAILS.find(x=>x[0]===r)||RAILS[4])[1];
@@ -959,7 +961,7 @@ function transfer(){
       <label class="f">Note<input class="in" id="xnote" maxlength="60" placeholder="What is this for?"></label>
       <button class="btn dark" type="submit" style="justify-content:center">${ic(inn?'down':'send')}${inn?'Record received from':'Record sent to'} ${esc(c.n)} via ${esc(ui.rail)}</button></form></div>
   <div class="xcol"><div class="card"><div class="row"><h3>Recent transfers</h3><span class="hint" style="margin:0">Sent ${fmt(sent)} · Received ${fmt(got)}</span></div>
-    <div style="margin-top:6px">${T.map(t=>{const r=t.r||'Other',i=t.dir==='in';return `<div class="tx"><div class="av">${t.n.split(' ').map(x=>x[0]).join('')}</div><div><b>${esc(t.n)}<span class="rb"><i style="background:${railCol(r)}"></i>${r}</span></b><small>${t.d}${t.ref?` · <span class="ref">${esc(t.ref)}</span>`:''}${t.note?` · ${esc(t.note)}`:''}</small></div><div class="a ${i?'inc':''}">${i?'+':'-'}${fmt(t.a)}</div></div>`}).join('')||'<div class="hint">No transfers yet.</div>'}</div></div>
+    <div style="margin-top:6px">${T.map(t=>{const r=t.r||'Other',i=t.dir==='in';return `<div class="tx"><div class="av">${t.n.split(' ').map(x=>x[0]).join('')}</div><div><b>${esc(t.n)}<span class="rb"><i style="background:${railCol(r)}"></i>${r}</span></b><small>${txDate(t)}${t.ref?` · <span class="ref">${esc(t.ref)}</span>`:''}${t.note?` · ${esc(t.note)}`:''}</small></div><div class="a ${i?'inc':''}">${i?'+':'-'}${fmt(t.a)}</div></div>`}).join('')||'<div class="hint">No transfers yet.</div>'}</div></div>
   <div class="card"><h3>Volume by method</h3><div class="hint">Total moved through each method</div><div style="margin-top:8px">${by.map(x=>`<div class="mb"><span>${x.r}</span><div class="meter"><i data-w="${(x.v/mx*100).toFixed(1)}" style="background:${x.col};width:0;transition:width 1s cubic-bezier(.2,.8,.2,1) .2s"></i></div><b style="font-weight:600">${fmt(x.v)}</b></div>`).join('')||'<div class="hint">Record a transfer to see your totals.</div>'}</div></div></div></div>`;
 }
 const CATIC={Housing:'home',Food:'food',Transport:'car',Shopping:'bag',Bills:'receipt',Entertainment:'film'};
@@ -1043,7 +1045,7 @@ function drillHTML(k){
   return `<div class="row" style="justify-content:flex-start;gap:12px"><span class="ico cat-ic">${ic(CATIC[k]||'coin')}</span><div><h3 style="margin:0">${k}</h3><div class="hint" style="margin:2px 0 0">${fmt(b.spent)} of ${fmt(b.limit)} · ${pc(st.p)} used</div></div></div>
   <div class="kv"><span>Left this cycle</span><b>${fmt(Math.max(0,b.limit-b.spent))}</b><span>${st.fixed?'Type':'Forecast at cycle end'}</span><b>${st.fixed?'Fixed bill':fmt(st.proj)}</b><span>Cycle day</span><b>${st.c.el} of ${st.c.len}</b></div>
   <div class="hint" style="margin-top:14px;font-weight:500">Expenses you added</div>
-  <div class="drl">${rows.map(x=>{const i=S.tx.indexOf(x);return `<div class="dr"><div><b>${esc(x.n)}</b><small>${x.d}</small></div><input class="cell num" type="number" min="0" step="100" value="${Math.round(-x.a*GY*100)/100}" data-txa="${i}" aria-label="Amount for ${esc(x.n)}"><button class="xdel" data-txdel="${i}" aria-label="Delete ${esc(x.n)}">×</button></div>`}).join('')||'<div class="hint" style="padding:10px 0">No individual expenses yet. Add one from the form on the Budget tab.</div>'}</div>
+  <div class="drl">${rows.map(x=>{const i=S.tx.indexOf(x);return `<div class="dr"><div><b>${esc(x.n)}</b><small>${txDate(x)}</small></div><input class="cell num" type="number" min="0" step="100" value="${Math.round(-x.a*GY*100)/100}" data-txa="${i}" aria-label="Amount for ${esc(x.n)}"><button class="xdel" data-txdel="${i}" aria-label="Delete ${esc(x.n)}">×</button></div>`}).join('')||'<div class="hint" style="padding:10px 0">No individual expenses yet. Add one from the form on the Budget tab.</div>'}</div>
   ${earlier>0.005?`<div class="hint" style="margin-top:10px">Plus ${fmt(earlier)} spent earlier in this cycle, before individual expenses were tracked.</div>`:''}
   <div class="btns"><button class="btn dark" data-act="mclose2">Close</button></div>`;
 }
@@ -1198,7 +1200,7 @@ function gExtras(cl){
    <div class="gbud"><div class="row"><label>Grocery budget (G$)<input class="cell num" type="number" min="0" step="1000" value="${bud==null?'':bud}" placeholder="Not set" data-gbud aria-label="Grocery budget"></label></div>${bar}
    ${food?`<div class="hint" style="margin-top:10px">Budget tab, Food: ${fmt(food.spent)} used of ${fmt(food.limit)}</div>`:''}
    ${trip?`<div class="hint">Last trip (${esc(trip.d)}): paid ${fmt(trip.paid,'G$')}${trip.est?`, ${trip.paid>trip.est?'over':'under'} the estimate by ${fmt(Math.abs(trip.paid-trip.est),'G$')}`:''}</div>`:''}</div></div>`;
-  const share=ui.share?`<div class="card pop" style="margin-bottom:16px"><div class="row"><h3>Share this list</h3><button class="btn sm" data-act="share">Close</button></div><textarea class="sharebox" id="sharetxt" readonly>${esc(shareText(cl))}</textarea><div class="btns" style="margin-top:12px"><button class="btn sm dark" data-act="copyshare">Copy text</button><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(shareText(cl))}">Open in WhatsApp</a></div></div>`:'';
+  const share=ui.share?`<div class="card popin" style="margin-bottom:16px"><div class="row"><h3>Share this list</h3><button class="btn sm" data-act="share">Close</button></div><textarea class="sharebox" id="sharetxt" readonly>${esc(shareText(cl))}</textarea><div class="btns" style="margin-top:12px"><button class="btn sm dark" data-act="copyshare">Copy text</button><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(shareText(cl))}">Open in WhatsApp</a></div></div>`:'';
   return `${share}<div class="gx">${quick}${cleo}</div>`;
 }
 function finishCard(cl){
@@ -1215,7 +1217,7 @@ function shopView(cl){
   const done=!need.length&&got.length;
   return `<div class="lswap"><div class="shophd"><div><h1>${esc(cl.name)}</h1><div class="sub">${got.length} of ${tot} in the cart · ${fmt(sum(got.map(x=>+x.c||0)),'G$')} so far</div></div><button class="btn dark" data-act="shopoff">Exit shopping mode</button></div>
   <div class="shopmeter" role="progressbar" aria-valuenow="${Math.round(pc)}" aria-valuemin="0" aria-valuemax="100"><i data-w="${pc.toFixed(1)}"></i></div>
-  ${done?`<div class="card gcleo happy pop" style="margin-bottom:14px"><div class="cleo happy"><div class="cleo-art sm">${cleoSvg('happy')}</div><div class="cleo-body"><span class="mood">Done</span><h3 class="cl-h">Cart complete</h3><p class="cl-t">Nice shopping. Log what you paid to wrap up.</p></div></div></div>`:''}
+  ${done?`<div class="card gcleo happy popin" style="margin-bottom:14px"><div class="cleo happy"><div class="cleo-art sm">${cleoSvg('happy')}</div><div class="cleo-body"><span class="mood">Done</span><h3 class="cl-h">Cart complete</h3><p class="cl-t">Nice shopping. Log what you paid to wrap up.</p></div></div></div>`:''}
   ${secs||(!done?`<div class="card"><div class="emptyrow">Nothing to buy. Add items from the list view.</div></div>`:'')}
   ${got.length?`<div class="card shopsec"><h3><span class="ico cat-ic">${ic('check')}</span>In the cart · ${got.length}</h3>${got.map(x=>rowH(x,true)).join('')}</div>`:''}
   ${finishCard(cl)}</div>`;
@@ -1408,7 +1410,7 @@ function profile(){
   ensureTg();const p=prof()||{},col=p.color||'#e8622a';
   const ini=(p.name||'?').split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
   const role=(user&&/@demo\.codear\.app$/.test(user.email||''))?'Demo account':'Account on this device';
-  const sw=['#e8622a','#3c52d9','#2f9e6a','#8a5cf5','#d6336c','#1f2937'].map(c=>`<button type="button" class="sw" data-pcol="${c}" aria-pressed="${c===col}" aria-label="Colour ${c}" style="background:${c}"></button>`).join('');
+  const sw=['#e8622a','#3c52d9','#2f9e6a','#8a5cf5','#d6336c','#1f2937'].map(c=>`<button type="button" class="swc" data-pcol="${c}" aria-pressed="${c===col}" aria-label="Colour ${c}" style="background:${c}"></button>`).join('');
   const gs=['','Male','Female','Prefer not to say'].map(g=>`<option value="${g}" ${g===(p.gender||'')?'selected':''}>${g||'Select'}</option>`).join('');
   return `<div class="page-head"><div><h1>Profile</h1><div class="sub">Your details and how you show up in the app.</div></div></div>
   <div class="tg2"><div class="card"><h3><span class="ico">${ic('user')}</span>Your profile</h3>
@@ -1465,7 +1467,7 @@ function go(r,instant){
   const main=$('#main');
   if(instant||reduce){paint(true);return}
   main.classList.add('loading');mascotCenter(true);
-  clearTimeout(navT);navT=setTimeout(()=>{try{paint(true)}catch(e){main.innerHTML='<div class="card"><h3>Something went wrong opening this page</h3><p class="sub">'+String(e&&e.message||e).replace(/</g,'&lt;')+' · '+String(e&&e.stack||'').split('\n').slice(1,3).join(' ').replace(/</g,'&lt;').trim()+'</p><button class="btn" id="resetdev">Reset this device and reload</button></div>';const rb=$('#resetdev');if(rb)rb.onclick=()=>{try{localStorage.removeItem('codear-budget-v2')}catch(x){}location.reload()}}main.classList.remove('loading');mascotCenter(false)},650);
+  clearTimeout(navT);navT=setTimeout(()=>{try{paint(true)}catch(e){main.innerHTML='<div class="card"><h3>Something went wrong opening this page</h3><p class="sub">'+String(e&&e.message||e).replace(/</g,'&lt;')+' · '+String(e&&e.stack||'').split('\n').slice(1,3).join(' ').replace(/</g,'&lt;').trim()+'</p><button class="btn" id="resetdev">Reset this device and reload</button></div>';const rb=$('#resetdev');if(rb)rb.onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem('codear-wiped2:'+KEY)}catch(x){}location.reload()}}main.classList.remove('loading');mascotCenter(false)},650);
 }
 const refresh=()=>{const y=scrollY;applyFresh();paint(false);scrollTo(0,y)};
 
@@ -1521,7 +1523,7 @@ function aiContext(){
   L.push(`BALANCES: ${fmt(S.acc.GYD,'G$')} GYD, ${fmt(S.acc.USD,'US$')} USD, ${fmt(S.acc.EUR,'€')} EUR, ${fmt(S.acc.GBP,'£')} GBP. Total about ${fmt(total())}. Exchange rate used: 209 G$ per US$1.`);
   if(S.goals&&S.goals.length){L.push('GOALS:');S.goals.forEach(g=>L.push(`- ${g.n}: ${fmt0(g.s)} saved of ${fmt0(g.t)}`))}
   const bills=(S.bills||[]).filter(b=>!b.paid);if(bills.length){L.push('BILLS COMING UP:');bills.forEach(b=>L.push(`- ${b.name} ${fmt(b.amt)} due ${b.due}${b.auto?' (auto-pay)':''}`))}
-  L.push('RECENT TRANSACTIONS (newest first):');(S.tx||[]).slice(0,14).forEach(t=>{const w='';L.push(`- ${t.d}: ${t.n} (${t.c}) ${fmt(t.a)}${w?' by '+w:''}`)});
+  L.push('RECENT TRANSACTIONS (newest first):');(S.tx||[]).slice(0,14).forEach(t=>{const w='';L.push(`- ${txDate(t)}: ${t.n} (${t.c}) ${fmt(t.a)}${w?' by '+w:''}`)});
   const ck=S.check||[],need=ck.filter(x=>x.s==='Need to Buy');
   L.push(`APARTMENT SETUP: ${ck.length} items; ${need.length} still to buy, ${ck.filter(x=>x.s==='Purchased').length} purchased, ${ck.filter(x=>x.s==='Already Have').length} already have. Estimated cost of priced items still to buy: ${fmt(sum(need.map(x=>+x.c||0)),'G$')}; ${need.filter(x=>x.c==null).length} to-buy items have no price yet. Spent on purchased items: ${fmt(sum(ck.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),'G$')}.`);
   L.push('APARTMENT ITEMS STILL TO BUY:');need.slice(0,40).forEach(x=>L.push(`- ${x.i} (${x.a})${x.c?`, est ${fmt(x.c,'G$')}`:', no price yet'}`));
@@ -1611,7 +1613,7 @@ document.addEventListener('click',e=>{
   const a=el.dataset.act;
   if(a==='goals'){if(t.closest('[data-act="addgoal"]'))return;ui.goalsOpen=!ui.goalsOpen;refresh();return}
   if(a==='addgoal'){e.stopPropagation();ui.goalsOpen=true;refresh();setTimeout(()=>$('#gname')?.focus(),50);return}
-  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid)[0],en=S.budget.Entertainment,inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en&&en.limit>0?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>Entertainment is at ${Math.round(en.spent/en.limit*100)}% of its limit</b><span>${fmt(en.limit-en.spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${inc.d}</span></div></div>`:''}`;return}
+  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid)[0],en=S.budget.Entertainment,inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en&&en.limit>0?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>Entertainment is at ${Math.round(en.spent/en.limit*100)}% of its limit</b><span>${fmt(en.limit-en.spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
   if(a==='theme'){const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);S.theme=nx;save();return}
   if(a==='lang'){toast('More languages are coming soon');return}
   if(a==='avatar'){const p=$('#userpop');p.hidden=!p.hidden;$('#bellpop').hidden=true;p.innerHTML=`<h4>${esc((prof()&&prof().name)||(user&&user.name)||'Guest')}</h4><div class="n"><span class="ico">${ic('mail')}</span><div><b style="word-break:break-all">${esc((user&&user.email)||'')}</b><span>Signed in on this device</span></div></div><button class="btn sm dark" style="width:100%;justify-content:center;margin-top:6px" data-act="profile">Profile settings</button><button class="btn sm" style="width:100%;justify-content:center;margin-top:6px" data-act="logout">Sign out</button>`;return}
@@ -1688,8 +1690,9 @@ document.addEventListener('submit',e=>{
     if(!inn&&amt>S.acc[acct]){toast(`Not enough ${acct}. Available: ${fmt(S.acc[acct],sym)}`);return}
     const base=amt*S.rate[acct];
     S.acc[acct]=+(S.acc[acct]+(inn?amt:-amt)).toFixed(2);
-    S.transfers.unshift({n:c.n,a:base,d:'Today',r:ui.rail,ref,note,dir:inn?'in':'out'});
-    S.tx.unshift({n:(inn?'Received · ':'Transfer · ')+c.n+' via '+ui.rail,c:inn?'Income':'Transfer',a:inn?base:-base,d:'Today'});
+    const now=Date.now();
+    S.transfers.unshift({n:c.n,a:base,d:'Today',ts:now,r:ui.rail,ref,note,dir:inn?'in':'out'});
+    S.tx.unshift({n:(inn?'Received · ':'Transfer · ')+c.n+' via '+ui.rail,c:inn?'Income':'Transfer',a:inn?base:-base,d:'Today',cy:S.cycle.id,ts:now});
     if(inn)S.incomeExtra=(S.incomeExtra||0)+base;
     save();refresh();toast(`${inn?'Recorded':'Recorded'} ${fmt(amt,sym)} ${inn?'received from':'sent to'} ${c.n} via ${ui.rail}`);return}
   if(f.id==='profform'){saveProfile();return}
@@ -1852,6 +1855,7 @@ function prepState(){
   if(S.sv!==SAMPLE_V){Object.assign(S,sampleData());save()}
   if(scrubNames())save();
   ensureTg();
+  S.fav=S.fav||{};S.prices=S.prices||{};S.hist=S.hist||{};
   if(!S.check){S.check=seedCheck();save()}
   if(!S.lists){S.lists=[makeList('groceries')];save()}
   if(!S.cycle){const d=new Date();d.setDate(d.getDate()-25);S.cycle={start:iso(d),id:1};save()}
