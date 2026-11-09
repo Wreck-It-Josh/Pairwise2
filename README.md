@@ -30,7 +30,10 @@ Then open http://localhost:3000 in your browser.
 
 ```
 codear-budget/
-├── public/index.html   # the app (HTML, CSS and JS in one file)
+├── public/
+│   ├── index.html      # page markup
+│   ├── styles.css      # all styles
+│   └── app.js          # all app logic (state, views, events)
 ├── server.js           # tiny static server, Node built-ins only
 ├── start.sh            # starts the app with Node or Python
 └── package.json
