@@ -1,0 +1,12 @@
+{
+  "name": "codear-budget",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Codear Budget — household budgeting web app",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
