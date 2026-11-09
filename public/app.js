@@ -308,7 +308,9 @@ function catStat(k,b){
 }
 function moodOf(){
   const c=cyc(),cats=Object.entries(S.budget).map(([k,b])=>({k,b,...catStat(k,b)}));
-  const tl=sum(cats.map(x=>x.b.limit)),ts=sum(cats.map(x=>x.b.spent)),used=tl>0?ts/tl:0;
+  const tl=sum(cats.map(x=>x.b.limit)),ts=sum(cats.map(x=>x.b.spent));
+  /* pace is judged on everyday spending only: rent and bills are paid in lumps, not day by day */
+  const fl=cats.filter(x=>!x.fixed),flL=sum(fl.map(x=>x.b.limit)),used=flL>0?sum(fl.map(x=>x.b.spent))/flL:0;
   const over=cats.filter(x=>x.p>1).sort((a,b)=>b.p-a.p);
   const ahead=cats.filter(x=>!x.fixed&&x.gap>.03&&x.p<=1&&x.p>.5).sort((a,b)=>b.gap-a.gap);
   const near=cats.filter(x=>x.p>.9&&x.p<=1&&!ahead.includes(x));
@@ -331,7 +333,7 @@ function assignHTML(tl){
 function insight(html){
   const M=moodOf(),B=t=>html?`<b>${t}</b>`:t,w=M.over[0]||M.ahead[0]||M.near[0];
   const tail=M.over.length?`${B(M.over[0].k)} is already over its limit.`:w?`${B(w.k)} is the one to watch.`:'Everything is on track.';
-  return `${M.c.ended?'This cycle has ended. ':''}You've used ${B(pc(M.used))} of your budget and ${B(pc(M.c.pace))} of the cycle has passed. ${tail}`;
+  return `${M.c.ended?'This cycle has ended. ':''}You've used ${B(pc(M.used))} of your everyday budget and ${B(pc(M.c.pace))} of the cycle has passed. ${tail}`;
 }
 function cleoSvg(m){
   const face={
@@ -396,7 +398,8 @@ function budget(){
   let tip;
   if(M.m==='happy')tip=`Keep it up. You have ${fmt(per)} a day to spend and still finish inside your budget.`;
   else if(w&&w.b.limit-w.b.spent>0)tip=`You can spend about ${fmt((w.b.limit-w.b.spent)/c.left)} a day on ${w.k} and still finish inside its limit.`;
-  else tip=`${(w||M.over[0]).k} has hit its limit. Move some room from a category with spare budget, or hold off until the next cycle.`;
+  else if(w)tip=`${w.k} has hit its limit. Move some room from a category with spare budget, or hold off until the next cycle.`;
+  else tip=rem>0?`Everyday spending is running ahead of the month. Try to keep to about ${fmt(per)} a day.`:'Your everyday budget is used up. Hold off where you can until the next cycle.';
   const why=[...M.over.map(x=>`<li><b>${x.k}</b> is over its limit at ${pc(x.p)} used.</li>`),...M.ahead.map(x=>`<li><b>${x.k}</b> is ${pc(x.p)} used with ${pc(c.pace)} of the cycle gone. At this pace it ends at ${fmt(x.proj)}.</li>`),...M.near.map(x=>`<li><b>${x.k}</b> is close to its limit at ${pc(x.p)} used.</li>`)];
   const dots=Array.from({length:c.len},(_,i)=>`<i class="${i+1<c.el?'on':i+1===c.el?'now':''}" style="--i:${i}"></i>`).join('');
   const ctrl=ui.cc?`<div class="row" style="gap:8px;flex-wrap:wrap"><span class="hint" style="margin:0">Reset all spending and start a new 30-day cycle?</span><button class="btn sm orange" data-act="newcycle-yes">Yes, start</button><button class="btn sm" data-act="newcycle">Cancel</button></div>`:`<button class="btn sm ${c.ended?'orange':''}" data-act="newcycle">${ic('refresh')}New cycle</button>`;
