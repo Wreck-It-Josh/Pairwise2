@@ -749,7 +749,7 @@ document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('#se
 function saveSetup(){
   const n=id=>Math.max(0,+$(id).value||0);
   S.income=n('#su-inc');
-  const g0=S.acc.GYD;S.acc.GYD=n('#su-gyd');if(S.income>0&&S.acc.GYD===g0&&S.paidCycle!==S.cycle.id){S.acc.GYD=+(g0+S.income).toFixed(2);S.paidCycle=S.cycle.id}
+  S.acc.GYD=n('#su-gyd');
   S.acc.USD=n('#su-usd');S.acc.EUR=n('#su-eur');S.acc.GBP=n('#su-gbp');
   $$('[data-lim]').forEach(i=>{const k=i.dataset.lim;if(S.budget[k])S.budget[k].limit=Math.max(0,+i.value||0)});
   const old=S.bills||[],nb=[];
