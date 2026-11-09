@@ -231,30 +231,54 @@ function analytics(){
 const cardBal=c=>c.main?S.acc.GYD:(+c.bal||0);
 function selCard(){const A=allCards();return A.find(c=>c.id===ui.sel)||A.find(c=>c.main)||A[0]}
 /* ---- savings goals ---- */
+/* goal money sits on one of your own (non-main) cards; S.goalCard remembers which, else the first one named Savings */
+const ownCards=()=>(S.cards||[]).filter(c=>!c.main);
+const goalCard=()=>ownCards().find(c=>c.id==S.goalCard)||ownCards().find(c=>/sav/i.test(c.name||''))||null;
+const goalsHeld=()=>sum((S.goals||[]).map(g=>+g.s||0));
+function cardMove(c,amt,note,ts){cardEdit(c.id,x=>{x.bal=+((+x.bal||0)+amt).toFixed(2);(x.hist=x.hist||[]).unshift({ts,amt,note});x.hist=x.hist.slice(0,30)})}
 const savCat=()=>{const ks=Object.keys(S.budget).filter(k=>/sav/i.test(k));return ks.find(k=>S.budget[k].fixed)||ks[0]||null};
 function goalHTML(i){
   const g=S.goals[i];if(!g)return '';const sc=savCat(),p=g.t>0?Math.min(100,g.s/g.t*100):0,left=Math.max(0,g.t-g.s);
-  const h=(g.hist||[]).slice(0,6).map(x=>`<div class="srow"><div class="grow"><b>${x.amt>0?'Added':'Taken out'}${x.note?' · '+esc(x.note):''}</b><small>${dfmt(new Date(x.ts))}${x.from?' · Salary account':''}</small></div><span class="${x.amt>0?'good':''}">${x.amt>0?'+':'-'}${fmt(Math.abs(x.amt))}</span></div>`).join('');
-  const del=ui.gdel===g.id?`<div class="note" style="margin-top:14px"><div>Delete <b>${esc(g.n)}</b>?${g.s>0?` It holds ${fmt(g.s)}.`:''}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${g.s>0?`<button type="button" class="btn sm orange" data-gdelgo="move">Move ${fmt0(g.s)} to Salary account and delete</button><button type="button" class="btn sm" data-gdelgo="keep">Just delete</button>`:'<button type="button" class="btn sm orange" data-gdelgo="keep">Delete</button>'}<button type="button" class="btn sm" data-gdel="">Cancel</button></div></div></div>`:'';
+  const h=(g.hist||[]).slice(0,6).map(x=>`<div class="srow"><div class="grow"><b>${x.amt>0?'Added':'Taken out'}${x.note?' · '+esc(x.note):''}</b><small>${dfmt(new Date(x.ts))}${x.from?' · Salary account':' · already on card'}</small></div><span class="${x.amt>0?'good':''}">${x.amt>0?'+':'-'}${fmt(Math.abs(x.amt))}</span></div>`).join('');
+  const del=ui.gdel===g.id?`<div class="note" style="margin-top:14px"><div>Delete <b>${esc(g.n)}</b>?${g.s>0?` It holds ${fmt(g.s)}.`:''}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${g.s>0?`<button type="button" class="btn sm orange" data-gdelgo="move">Move ${fmt0(g.s)} back to Salary account</button><button type="button" class="btn sm" data-gdelgo="keep">Leave it on ${esc((goalCard()||{name:'the card'}).name)}</button>`:'<button type="button" class="btn sm orange" data-gdelgo="keep">Delete</button>'}<button type="button" class="btn sm" data-gdel="">Cancel</button></div></div></div>`:'';
   return `<div class="row" style="justify-content:flex-start;gap:12px"><span class="ico cat-ic">${ic('target')}</span><div><h3 style="margin:0">${esc(g.n)}</h3><div class="hint" style="margin:2px 0 0">${fmt(g.s)} saved of ${fmt(g.t)} · ${Math.round(p)}%${left>0?` · ${fmt0(left)} to go`:' · reached'}</div></div></div>
   <div class="meter" style="height:8px;margin:14px 0 4px"><i style="width:${p}%"></i></div>
-  <form class="form" id="goalmoney" data-i="${i}"><div class="two"><label class="f">Amount (G$)<input class="in" id="gm-a" type="number" min="0.01" step="any" required></label><label class="f">Note (optional)<input class="in" id="gm-n" maxlength="40" placeholder="e.g. November saving"></label></div>
-  <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="gm-f" checked style="width:auto;margin:0"> Move the money from or back to my Salary account</label>
+  ${goalCardHTML()}
+  ${goalCard()?`<form class="form" id="goalmoney" data-i="${i}"><div class="two"><label class="f">Amount (G$)<input class="in" id="gm-a" type="number" min="0.01" step="any" required></label><label class="f">Note (optional)<input class="in" id="gm-n" maxlength="40" placeholder="e.g. November saving"></label></div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="gm-f" checked style="width:auto;margin:0"> Move the money between my Salary account and ${esc(goalCard().name)}</label>
+  <div class="hint" style="margin:0">Untick if the money is already on ${esc(goalCard().name)} and you only want to assign it to this goal.</div>
   <div class="hint" style="margin:0">${sc?`Money added from your Salary account counts as spending in <b>${esc(sc)}</b> on the Budget tab.`:'Tip: add a Savings category (tick Fixed) under Budget, Edit categories, to plan how much you save each month.'}</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Take out</button></div></form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Take out</button></div></form>`:''}
   ${h?`<div style="margin-top:14px">${h}</div>`:''}
   <div class="two" style="margin-top:16px"><label class="f">Goal name<input class="in" data-gedit="n" maxlength="40" value="${esc(g.n)}"></label><label class="f">Target (G$)<input class="in" type="number" min="1" step="any" data-gedit="t" value="${Math.round(g.t)}"></label></div>
   ${del}
   <div class="btns"><button type="button" class="btn dark" data-act="mclose2">Done</button>${ui.gdel===g.id?'':`<button type="button" class="btn" data-gdel="${g.id}">Delete goal</button>`}</div>`;
 }
+function goalCardHTML(){
+  const gc=goalCard(),own=ownCards();
+  if(gc&&!ui.gcPick){const held=goalsHeld(),bal=+gc.bal||0;
+    return `<div class="note" style="margin:14px 0 0">${ic('wallet')}<div>Goal money is kept on your <b>${esc(gc.name)}</b> card: ${fmt(bal)}, of which ${fmt(Math.min(held,bal))} is in goals${bal>held?` and ${fmt(bal-held)} is not assigned yet`:''}.${held>bal+0.005?` <b class="bad">Your goals add up to ${fmt(held)}, more than the card shows.</b> Update the card in Wallet to match your real savings account.`:''} <button type="button" class="link" data-gcpick="1">Change card</button></div></div>`}
+  const pick=own.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><select class="in" id="gc-sel" style="height:36px;width:auto">${own.map(c=>`<option value="${c.id}" ${gc&&gc.id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select><button type="button" class="btn sm dark" data-gcuse="1">Use this card</button></div>`:'';
+  return `<div class="note" style="margin:14px 0 0">${ic('wallet')}<div>Which card is your savings account? Goal money is kept there.${pick}<div style="margin-top:8px"><button type="button" class="btn sm" data-gcnew="1">${own.length?'Or create':'Create'} a Savings card</button>${ui.gcPick?' <button type="button" class="btn sm" data-gcpick="">Cancel</button>':''}</div></div></div>`;
+}
 const openGoal=i=>{ui.goal=i;modal(goalHTML(i))};
+/* returns an error message, or '' when the money moved */
 function goalMoney(i,amt,out,note,fromMain){
-  const g=S.goals[i],sc=savCat(),ts=Date.now();
+  const g=S.goals[i],gc=goalCard(),sc=savCat(),ts=Date.now();
+  if(!gc)return 'Pick the card that holds your savings first';
+  const bal=+gc.bal||0,free=bal-goalsHeld();
+  if(out&&amt>g.s+0.005)return `${g.n} only holds ${fmt(g.s)}`;
+  if(!out&&fromMain&&amt>S.acc.GYD)return 'Your Salary account does not have that much';
+  if(!out&&!fromMain&&amt>free+0.005)return free>0?`Only ${fmt(free)} on ${gc.name} is not assigned to a goal yet`:`Everything on ${gc.name} is already assigned. Tick the box to move money from your Salary account`;
+  if(out&&fromMain&&amt>bal+0.005)return `${gc.name} only shows ${fmt(bal)}. Update it in Wallet first`;
+  S.goalCard=gc.id;
   g.s=+(g.s+(out?-amt:amt)).toFixed(2);(g.hist=g.hist||[]).unshift({ts,amt:out?-amt:amt,note,from:fromMain||undefined});g.hist=g.hist.slice(0,30);
-  if(!fromMain)return;
+  if(!fromMain){save();return ''}
+  cardMove(gc,out?-amt:amt,(out?'To Salary account from ':'Saved to ')+g.n,ts);
   S.acc.GYD=+(S.acc.GYD+(out?amt:-amt)).toFixed(2);
   if(!out&&sc)S.budget[sc].spent=+(S.budget[sc].spent+amt).toFixed(2);
-  S.tx.unshift({n:(out?'Taken from ':'Saved to ')+g.n,c:!out&&sc?sc:'Transfer',a:out?amt:-amt,d:'Today',cy:S.cycle.id,ts,goal:g.id});
+  S.tx.unshift({n:(out?'Taken from ':'Saved to ')+g.n,c:!out&&sc?sc:'Transfer',a:out?amt:-amt,d:'Today',cy:S.cycle.id,ts,goal:g.id,card:gc.id});
+  return '';
 }
 /* ---- cycle history ---- */
 function snapCycle(){
@@ -279,8 +303,9 @@ function cardMoney(c){
 }
 function acctCard(){
   const c=selCard();if(!c)return '';const m=!!c.main;
-  return `<div class="card"><h3><span class="ico">${ic('wallet')}</span>${esc(c.name)}</h3><div class="hint">${m?'Your main account. It changes with your expenses, income and transfers.':c.joint?'A joint account. Your partner sees this card and its balance too.':'Kept here for reference. Only you can see it. It is not used in budgets, totals or Cleo.'}</div>
+  return `<div class="card"><h3><span class="ico">${ic('wallet')}</span>${esc(c.name)}</h3><div class="hint">${m?'Your main account. It changes with your expenses, income and transfers.':c.joint?'A joint account. Your partner sees this card and its balance too.':goalCard()&&goalCard().id===c.id?'Your savings account. Money you put into savings goals is kept here. Only you can see it, and it is not counted in your budget or Total Balance.':'Kept here for reference. Only you can see it. It is not used in budgets, totals or Cleo.'}</div>
   <div class="big" style="margin:14px 0 4px" data-count="${cardBal(c)}" data-f="G$">0</div>
+  ${goalCard()&&goalCard().id===c.id&&(S.goals||[]).length?`<div class="hint">Holds your savings goals: ${fmt(Math.min(goalsHeld(),cardBal(c)))} in goals${cardBal(c)>goalsHeld()?`, ${fmt(cardBal(c)-goalsHeld())} not assigned`:''}.${goalsHeld()>cardBal(c)+0.005?` <b class="bad">Goals add up to ${fmt(goalsHeld())}, more than this card shows.</b>`:''}</div>`:''}
   <form class="form" id="cardform" data-id="${c.id}" style="margin-top:12px"><div class="two"><label class="f">Account name<input class="in" id="cd-n" maxlength="30" required value="${esc(c.name)}"></label><label class="f">Balance (G$)<input class="in" id="cd-b" type="number" min="0" step="any" ${m?'disabled':''} value="${cardBal(c)}"></label></div>
   ${m?'<div class="hint">To change this balance, use + Add, then Update balance.</div>':''}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn dark" type="submit">Save</button>${m?'':`<button type="button" class="btn" data-act="delcard">${ui.dcard===c.id?'Tap again to delete':'Delete account'}</button>`}</div></form>${m?'':cardMoney(c)}</div>`;
@@ -801,6 +826,7 @@ function payBill(b,ts){
 function undoTx(x){
   const amt=-x.a;if(S.budget[x.c])S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent-amt).toFixed(2));
   S.acc.GYD=+(S.acc.GYD+amt).toFixed(2);S.tx.splice(S.tx.indexOf(x),1);
+  if(x.card)cardEdit(x.card,c=>{c.bal=+((+c.bal||0)-amt).toFixed(2);c.hist=(c.hist||[]).filter(h=>h.ts!==x.ts)});
   if(x.goal){const g=(S.goals||[]).find(y=>y.id===x.goal);if(g){g.s=Math.max(0,+(g.s-amt).toFixed(2));g.hist=(g.hist||[]).filter(h=>h.ts!==x.ts)}}
   if(x.bill){const b=(S.bills||[]).find(y=>y.id===x.bill);if(b&&b.paidFor===x.billKey)b.paidFor=null;refreshBills()}
 }
@@ -1060,10 +1086,13 @@ document.addEventListener('click',e=>{
   let el=t.closest('[data-scroll]');if(el){$('.cards')?.scrollBy({left:+el.dataset.scroll*246,behavior:'smooth'});return}
   el=t.closest('[data-drill]');if(el){ui.drill=el.dataset.drill;modal(drillHTML(ui.drill));return}
   el=t.closest('[data-txdel]');if(el){const x=S.tx[+el.dataset.txdel];if(x){undoTx(x);save();refresh();modal(drillHTML(ui.drill))}return}
-  el=t.closest('[data-goal]');if(el&&!t.closest('#modalroot')){ui.gdel=null;openGoal(+el.dataset.goal);return}
+  el=t.closest('[data-goal]');if(el&&!t.closest('#modalroot')){ui.gdel=null;ui.gcPick=false;openGoal(+el.dataset.goal);return}
   el=t.closest('[data-gdel]');if(el){ui.gdel=el.dataset.gdel?+el.dataset.gdel:null;openGoal(ui.goal);return}
-  el=t.closest('[data-gdelgo]');if(el){const i=ui.goal,g=S.goals[i];if(g){if(el.dataset.gdelgo==='move'&&g.s>0){S.acc.GYD=+(S.acc.GYD+g.s).toFixed(2);S.tx.unshift({n:'Closed goal '+g.n,c:'Transfer',a:g.s,d:'Today',cy:S.cycle.id,ts:Date.now()})}
+  el=t.closest('[data-gdelgo]');if(el){const i=ui.goal,g=S.goals[i];if(g){if(el.dataset.gdelgo==='move'&&g.s>0){const gc=goalCard(),ts=Date.now();if(gc)cardMove(gc,-g.s,'Closed goal '+g.n,ts);S.acc.GYD=+(S.acc.GYD+g.s).toFixed(2);S.tx.unshift({n:'Closed goal '+g.n,c:'Transfer',a:g.s,d:'Today',cy:S.cycle.id,ts,card:gc&&gc.id})}
     S.goals.splice(i,1);ui.gdel=null;save();closeModal();refresh();toast(`${g.n} deleted`)}return}
+  el=t.closest('[data-gcpick]');if(el){ui.gcPick=!!el.dataset.gcpick;openGoal(ui.goal);return}
+  el=t.closest('[data-gcuse]');if(el){S.goalCard=+$('#gc-sel').value;ui.gcPick=false;save();refresh();openGoal(ui.goal);toast(`Goal money is now kept on ${goalCard().name}`);return}
+  el=t.closest('[data-gcnew]');if(el){const id=Date.now();S.cards.push({id,cls:['black','orange','blue'][allCards().length%3],name:'Savings',bal:0,last:String(1000+Math.floor(Math.random()*9000)),exp:'11/30',holder:myName()});S.goalCard=id;ui.gcPick=false;save();refresh();openGoal(ui.goal);toast('Savings card created in Wallet');return}
   el=t.closest('[data-cyc]');if(el){const id=+el.dataset.cyc;ui.cycOpen=ui.cycOpen===id?null:id;refresh();return}
   el=t.closest('[data-cdel]');if(el){const k=el.dataset.cdel;if(k&&S.budget[k]&&!catInUse(k)){removeCat(k);ui.catDel=null;catsChanged(`${k} removed`)}else{ui.catDel=k||null;openCats()}return}
   el=t.closest('[data-cdelgo]');if(el){const k=el.dataset.cdelgo,to=$('#cmvto').value;if(S.budget[k]&&S.budget[to]){removeCat(k,to);ui.catDel=null;catsChanged(`${k} removed. Its spending now counts in ${to}`)}return}
@@ -1131,7 +1160,7 @@ document.addEventListener('click',e=>{
   if(a==='receive'){ui.dir='in';go('transfer');return}
   if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Writes a short message asking someone to pay you. Paste it into WhatsApp, SMS or email.</div><form class="form" id="reqform"><label class="f">From<select class="in" id="rwho">${S.contacts.map(c=>`<option>${esc(c.n)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="ramt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label><label class="f">What for (optional)<input class="in" id="rfor" maxlength="60" placeholder="e.g. Your half of the light bill"></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('copy')}Copy request message</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
   if(a==='addcard'){modal(`<h3>Add a card</h3><div class="hint">For example Savings or a Joint account. Only the main account is used by the budget. Joint cards are the only ones your partner can see.</div><form id="newcardform" class="form" style="margin-top:12px"><label class="f">Account name<input class="in" id="nc-n" maxlength="30" required placeholder="e.g. Savings" autofocus></label><label class="f">Balance (G$)<input class="in" id="nc-b" type="number" min="0" step="any" value="0"></label><label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="nc-j" style="width:auto;margin:0"> Joint card, shared with my partner</label><button class="btn dark" type="submit" style="margin-top:10px;width:100%">Add card</button></form>`);return}
-  if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
+  if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(goalCard()&&goalCard().id===c.id&&goalsHeld()>0){toast('This card holds your savings goals. Take the money out of the goals first');return}if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
   if(a==='rates'){toast(`Live rates are not connected. Using fixed rates: US$1 = G$209, €1 = US$${S.rate.EUR}, £1 = US$${S.rate.GBP}`);return}
 });
 document.addEventListener('change',e=>{
@@ -1200,9 +1229,8 @@ document.addEventListener('submit',e=>{
     ui.sel=id;ui.newId=id;closeModal();refresh();ui.newId=null;toast('New card added');setTimeout(()=>$('.cards')?.scrollTo({left:1e5,behavior:'smooth'}),50);return}
   if(f.id==='setupform'){saveSetup();return}
   if(f.id==='goalmoney'){const i=+f.dataset.i,g=S.goals[i],a=+$('#gm-a').value,out=e.submitter&&e.submitter.value==='out',fromMain=$('#gm-f').checked;if(!g||!(a>0))return;
-    if(out&&a>g.s){toast(`${g.n} only holds ${fmt(g.s)}`);return}
-    if(fromMain&&!out&&a>S.acc.GYD){toast('Your Salary account does not have that much');return}
-    goalMoney(i,a,out,$('#gm-n').value.trim(),fromMain);save();refresh();openGoal(i);toast(`${fmt(a)} ${out?'taken out of':'added to'} ${g.n}`);return}
+    const er=goalMoney(i,a,out,$('#gm-n').value.trim(),fromMain);if(er){toast(er);return}
+    save();refresh();openGoal(i);toast(`${fmt(a)} ${out?'taken out of':'added to'} ${g.n}`);return}
   if(f.id==='catadd'){const n=$('#ca-n').value.trim().replace(/\s+/g,' '),er=catNameErr(n);if(er){toast(er);return}
     S.budget[n]={limit:Math.max(0,+$('#ca-l').value||0),spent:0,fixed:$('#ca-f').checked};catsChanged(`${n} added`);setTimeout(()=>$('#ca-n')?.focus(),30);return}
   if(f.id==='qaform'){saveQuick();return}
@@ -1217,7 +1245,7 @@ $('#chatform').addEventListener('submit',()=>{});
 $('#quick').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!AI.busy)ask(b.textContent)});
 $('#mascot').addEventListener('click',()=>openChat(true));
 $('#mascot').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openChat(true)}});
-document.addEventListener('keydown',e=>{const g=e.target.closest&&e.target.closest('[data-goal]');if(g&&(e.key==='Enter'||e.key===' ')){e.preventDefault();ui.gdel=null;openGoal(+g.dataset.goal);return}if(e.key==='Escape'){closeModal();openChat(false);$('#bellpop').hidden=true}});
+document.addEventListener('keydown',e=>{const g=e.target.closest&&e.target.closest('[data-goal]');if(g&&(e.key==='Enter'||e.key===' ')){e.preventDefault();ui.gdel=null;ui.gcPick=false;openGoal(+g.dataset.goal);return}if(e.key==='Escape'){closeModal();openChat(false);$('#bellpop').hidden=true}});
 document.addEventListener('mouseover',e=>{const g=e.target.closest('.bar-g');if(!g)return;const w=g.closest('.chart-wrap'),tip=$('.tip',w);tip.textContent=g.dataset.tip;tip.style.left=g.dataset.tx+'%';tip.style.top=g.dataset.ty+'%';tip.style.opacity=1});
 document.addEventListener('mouseout',e=>{const g=e.target.closest('.bar-g');if(g)$('.tip',g.closest('.chart-wrap')).style.opacity=0});
 document.addEventListener('click',e=>{if(!e.target.closest('#bellpop')&&!e.target.closest('[data-act="bell"]'))$('#bellpop').hidden=true;if(!e.target.closest('#userpop')&&!e.target.closest('[data-act="avatar"]'))$('#userpop').hidden=true},true);
