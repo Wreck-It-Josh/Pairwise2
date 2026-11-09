@@ -202,7 +202,8 @@ function dashboard(){
     <div class="card report c3 r2"><h4>Financial Report</h4><div class="ttl">Total Income Forecast</div><div style="font-size:30px;font-weight:600;letter-spacing:-.03em" data-count="${inc*12}" data-f="$">0</div>
       <div class="stats"><div><span>Weekly</span><b>${fmt0(inc/4.3)}</b></div><div><span>Monthly</span><b>${fmt0(inc)}</b></div><div><span>Yearly</span><b>${fmt0(inc*12)}</b></div></div></div>
     <div class="goals"><div class="head" data-act="goals" role="button" tabindex="0" aria-expanded="${ui.goalsOpen}"><span class="ico">${ic('target')}</span><strong>My Savings Goals</strong><button class="add" data-act="addgoal"><i>+</i>Add Goal</button></div>
-      ${ui.goalsOpen?`<div class="glist">${S.goals.map(g=>`<div class="g-item"><div class="row"><b style="font-weight:500">${esc(g.n)}</b><span>${fmt0(g.s)} / ${fmt0(g.t)}</span></div><div class="g-bar"><i style="width:${Math.min(100,g.s/g.t*100)}%"></i></div></div>`).join('')}
+      ${ui.goalsOpen?`<div class="glist">${S.goals.map((g,i)=>`<div class="g-item" data-goal="${i}" role="button" tabindex="0" aria-label="Add money to ${esc(g.n)}"><div class="row"><b style="font-weight:500">${esc(g.n)}</b><span>${fmt0(g.s)} / ${fmt0(g.t)}</span></div><div class="g-bar"><i style="width:${Math.min(100,g.s/g.t*100)}%"></i></div></div>`).join('')}
+      ${S.goals.length?'<div class="ghint">Tap a goal to add or take out money</div>':''}
       <form class="gform" id="goalform"><input id="gname" placeholder="Goal name" required maxlength="40"><input id="gtarget" placeholder="Target G$" type="number" min="1" step="any" required><button class="add" type="submit"><i>+</i>Save</button></form></div>`:''}
     </div></div>`;
 }
@@ -229,6 +230,47 @@ function analytics(){
 }
 const cardBal=c=>c.main?S.acc.GYD:(+c.bal||0);
 function selCard(){const A=allCards();return A.find(c=>c.id===ui.sel)||A.find(c=>c.main)||A[0]}
+/* ---- savings goals ---- */
+const savCat=()=>{const ks=Object.keys(S.budget).filter(k=>/sav/i.test(k));return ks.find(k=>S.budget[k].fixed)||ks[0]||null};
+function goalHTML(i){
+  const g=S.goals[i];if(!g)return '';const sc=savCat(),p=g.t>0?Math.min(100,g.s/g.t*100):0,left=Math.max(0,g.t-g.s);
+  const h=(g.hist||[]).slice(0,6).map(x=>`<div class="srow"><div class="grow"><b>${x.amt>0?'Added':'Taken out'}${x.note?' · '+esc(x.note):''}</b><small>${dfmt(new Date(x.ts))}${x.from?' · Salary account':''}</small></div><span class="${x.amt>0?'good':''}">${x.amt>0?'+':'-'}${fmt(Math.abs(x.amt))}</span></div>`).join('');
+  const del=ui.gdel===g.id?`<div class="note" style="margin-top:14px"><div>Delete <b>${esc(g.n)}</b>?${g.s>0?` It holds ${fmt(g.s)}.`:''}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${g.s>0?`<button type="button" class="btn sm orange" data-gdelgo="move">Move ${fmt0(g.s)} to Salary account and delete</button><button type="button" class="btn sm" data-gdelgo="keep">Just delete</button>`:'<button type="button" class="btn sm orange" data-gdelgo="keep">Delete</button>'}<button type="button" class="btn sm" data-gdel="">Cancel</button></div></div></div>`:'';
+  return `<div class="row" style="justify-content:flex-start;gap:12px"><span class="ico cat-ic">${ic('target')}</span><div><h3 style="margin:0">${esc(g.n)}</h3><div class="hint" style="margin:2px 0 0">${fmt(g.s)} saved of ${fmt(g.t)} · ${Math.round(p)}%${left>0?` · ${fmt0(left)} to go`:' · reached'}</div></div></div>
+  <div class="meter" style="height:8px;margin:14px 0 4px"><i style="width:${p}%"></i></div>
+  <form class="form" id="goalmoney" data-i="${i}"><div class="two"><label class="f">Amount (G$)<input class="in" id="gm-a" type="number" min="0.01" step="any" required></label><label class="f">Note (optional)<input class="in" id="gm-n" maxlength="40" placeholder="e.g. November saving"></label></div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="gm-f" checked style="width:auto;margin:0"> Move the money from or back to my Salary account</label>
+  <div class="hint" style="margin:0">${sc?`Money added from your Salary account counts as spending in <b>${esc(sc)}</b> on the Budget tab.`:'Tip: add a Savings category (tick Fixed) under Budget, Edit categories, to plan how much you save each month.'}</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Take out</button></div></form>
+  ${h?`<div style="margin-top:14px">${h}</div>`:''}
+  <div class="two" style="margin-top:16px"><label class="f">Goal name<input class="in" data-gedit="n" maxlength="40" value="${esc(g.n)}"></label><label class="f">Target (G$)<input class="in" type="number" min="1" step="any" data-gedit="t" value="${Math.round(g.t)}"></label></div>
+  ${del}
+  <div class="btns"><button type="button" class="btn dark" data-act="mclose2">Done</button>${ui.gdel===g.id?'':`<button type="button" class="btn" data-gdel="${g.id}">Delete goal</button>`}</div>`;
+}
+const openGoal=i=>{ui.goal=i;modal(goalHTML(i))};
+function goalMoney(i,amt,out,note,fromMain){
+  const g=S.goals[i],sc=savCat(),ts=Date.now();
+  g.s=+(g.s+(out?-amt:amt)).toFixed(2);(g.hist=g.hist||[]).unshift({ts,amt:out?-amt:amt,note,from:fromMain||undefined});g.hist=g.hist.slice(0,30);
+  if(!fromMain)return;
+  S.acc.GYD=+(S.acc.GYD+(out?amt:-amt)).toFixed(2);
+  if(!out&&sc)S.budget[sc].spent=+(S.budget[sc].spent+amt).toFixed(2);
+  S.tx.unshift({n:(out?'Taken from ':'Saved to ')+g.n,c:!out&&sc?sc:'Transfer',a:out?amt:-amt,d:'Today',cy:S.cycle.id,ts,goal:g.id});
+}
+/* ---- cycle history ---- */
+function snapCycle(){
+  const cats=Object.entries(S.budget).map(([k,b])=>({k,l:b.limit,s:b.spent,f:!!b.fixed}));
+  if(!cats.some(x=>x.l||x.s))return;
+  (S.cycles=S.cycles||[]).unshift({id:S.cycle.id,start:S.cycle.start,end:iso(new Date()),inc:(+S.income||0)+(+S.incomeExtra||0),cats});
+  S.cycles=S.cycles.slice(0,24);
+}
+function pastCycles(){
+  const L=S.cycles||[],d=s=>dfmt(new Date(s+'T00:00:00'));
+  const rows=L.map(x=>{const l=sum(x.cats.map(c=>c.l)),s=sum(x.cats.map(c=>c.s)),over=x.cats.filter(c=>c.s>c.l),open=ui.cycOpen===x.id,kept=x.inc-s;
+    return `<div class="cycrow"><div class="row" style="flex-wrap:wrap"><div><b>${d(x.start)} to ${d(x.end)}</b><small>Spent ${fmt0(s)} of ${fmt0(l)} planned${x.inc?` · Income ${fmt0(x.inc)}`:''}</small></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">${x.inc?`<span class="pchip ${kept<0?'bad':'good'}">${kept<0?`${fmt0(-kept)} more than income`:`${fmt0(kept)} not spent`}</span>`:''}${over.length?`<span class="pchip bad">${over.length} over</span>`:'<span class="pchip good">All within limits</span>'}<button class="btn sm" data-cyc="${x.id}" aria-expanded="${open}">${open?'Hide':'Details'}</button></div></div>
+      ${open?`<div class="tw"><table class="tbl" style="min-width:420px"><thead><tr><th>Category</th><th style="text-align:right">Planned</th><th style="text-align:right">Spent</th><th style="text-align:right">Difference</th></tr></thead><tbody>${x.cats.map(c=>`<tr><td>${esc(c.k)}${c.f?' <span class="tchip">Fixed</span>':''}</td><td style="text-align:right">${fmt0(c.l)}</td><td style="text-align:right">${fmt0(c.s)}</td><td style="text-align:right" class="${c.s>c.l?'bad':'good'}">${fmt0(Math.abs(c.l-c.s))} ${c.s>c.l?'over':'left'}</td></tr>`).join('')}</tbody></table></div>`:''}</div>`}).join('');
+  return `<div class="card" style="margin-top:16px"><h3><span class="ico">${ic('cal')}</span>Past cycles</h3><div class="hint">${L.length?'A summary is saved each time you start a new cycle.':'Nothing yet. When you press New cycle, a summary of this one is saved here.'}</div>${rows}</div>`;
+}
 function cardMoney(c){
   const h=(c.hist||[]).slice(0,5).map(x=>`<div class="srow"><div class="grow"><b>${x.amt>0?'Added':'Withdrawn'}${x.note?' · '+esc(x.note):''}</b><small>${new Date(x.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}${x.from?' · from salary account':''}</small></div><span class="${x.amt>0?'good':''}">${x.amt>0?'+':'-'}${fmt(Math.abs(x.amt),'G$')}</span></div>`).join('');
   return `<h4 style="margin:20px 0 6px">Add or withdraw money</h4><form class="form" id="cmoney" data-id="${c.id}"><div class="two"><label class="f">Amount (G$)<input class="in" id="cm-a" type="number" min="1" step="any" required></label><label class="f">Note (optional)<input class="in" id="cm-n" maxlength="40" placeholder="e.g. Monthly saving"></label></div>
@@ -460,7 +502,7 @@ function budget(){
   <label class="f">Description<input class="in" id="edesc" maxlength="50" placeholder="e.g. Lunch with team" required></label><button class="btn orange" type="submit" style="justify-content:center">${ic('plus')}Add expense</button></form></div></div>
   ${aptCard()}
   <div class="row" style="margin:6px 2px 12px;flex-wrap:wrap"><h3 style="font-size:16px;letter-spacing:-.02em;margin:0">Categories</h3><div class="row" style="gap:12px;flex-wrap:wrap"><span class="legend-t"><i></i>marks where you should be today</span><button class="btn sm" data-act="cats">Edit categories</button></div></div>
-  <div class="grid g-3" id="bcats">${Object.entries(S.budget).map(([k,b])=>budgetCard(k,b)).join('')}</div>`;
+  <div class="grid g-3" id="bcats">${Object.entries(S.budget).map(([k,b])=>budgetCard(k,b)).join('')}</div>${pastCycles()}`;
 }
 
 const CHK=[["Living Room", "Sofa / Couch", "Purchased", "Medium", 120000.0], ["Living Room", "Coffee Table", "Purchased", "Medium", 25000.0], ["Living Room", "TV Stand / Console", "Purchased", "Medium", 16000.0], ["Living Room", "Television", "Need to Buy", "Medium", null], ["Living Room", "Curtains / Blinds", "Purchased", "Medium", 9400.0], ["Living Room", "Rug", "Need to Buy", "Medium", 31000.0], ["Living Room", "Bookshelf", "Purchased", "Medium", 11500.0], ["Living Room", "Lamps / Lighting", "Need to Buy", "Medium", null], ["Living Room", "Wall Decor / Artwork", "Need to Buy", "Medium", null], ["Living Room", "Fan / Air Conditioner", "Purchased", "Medium", 12000.0], ["Dining Room", "Dining Table", "Need to Buy", "Medium", null], ["Dining Room", "Dining Chairs", "Need to Buy", "Medium", 0.0], ["Dining Room", "Table Mats", "Need to Buy", "Medium", 0.0], ["Bedroom", "Bedside Table", "Need to Buy", "Medium", null], ["Bedroom", "Vanity Desk", "Need to Buy", "Medium", null], ["Dining Room", "Lighting", "Need to Buy", "Medium", null], ["Dining Room", "Storage / Cabinet", "Purchased", "Medium", 16000.0], ["Gaming / Entertainment Room", "Gaming Desk / Entertainment Unit", "Already Have", "Medium", null], ["Gaming / Entertainment Room", "Gaming Chair / Recliner", "Already Have", "Medium", null], ["Gaming / Entertainment Room", "TV", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "Gaming Console / PC", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "Speakers / Sound System", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "Headset", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "Controller Storage", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "LED / Ambient Lighting", "Purchased", "Medium", 4500.0], ["Gaming / Entertainment Room", "Surge Protector / UPS", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "Cable Management", "Need to Buy", "Medium", null], ["Gaming / Entertainment Room", "Internet / Ethernet Setup", "Need to Buy", "Medium", 8900.0], ["Kitchen", "Refrigerator", "Purchased", "Medium", 98000.0], ["Kitchen", "Stove / Cooker", "Purchased", "Medium", 3000.0], ["Kitchen", "Microwave", "Purchased", "Medium", 20000.0], ["Kitchen", "Water dispenser", "Purchased", "Medium", 34000.0], ["Kitchen", "Toaster / Air Fryer", "Need to Buy", "Medium", null], ["Kitchen", "Pots and Pans", "Need to Buy", "Medium", null], ["Kitchen", "Frying Pan", "Already Have", "Medium", null], ["Kitchen", "Cooking Utensils", "Purchased", "Medium", 2100.0], ["Kitchen", "Knives", "Need to Buy", "Medium", 3400.0], ["Kitchen", "Cutting Board", "Purchased", "Medium", 2280.0], ["Kitchen", "Plates set", "Purchased", "Medium", 6500.0], ["Kitchen", "Bowls", "Need to Buy", "Medium", null], ["Kitchen", "Cups / Glasses", "Need to Buy", "Medium", null], ["Kitchen", "Forks / Spoons / Knives", "Purchased", "Medium", 6000.0], ["Kitchen", "Food Storage Containers", "Purchased", "Medium", 4000.0], ["Kitchen", "Dish Rack", "Purchased", "Medium", 5000.0], ["Kitchen", "Dish Soap / Sponges", "Purchased", "Medium", 1000.0], ["Kitchen", "Kitchen Towels", "Purchased", "Medium", 1000.0], ["Kitchen", "Water filter", "Purchased", "Medium", 30000.0], ["Kitchen", "Trash Bin", "Purchased", "Medium", 3200.0], ["Kitchen", "Cleaning Supplies", "Purchased", "Medium", null], ["Kitchen", "Blender", "Purchased", "Medium", 14000.0], ["Bathroom & Toilet", "Shower Curtain / Screen", "Purchased", "Medium", 1600.0], ["Bathroom & Toilet", "Bath Mat", "Need to Buy", "Medium", null], ["Bathroom & Toilet", "Towels", "Purchased", "Medium", 2100.0], ["Bathroom & Toilet", "Towel Rack / Hooks", "Need to Buy", "Medium", null], ["Bathroom & Toilet", "Toilet Paper Holder", "Already Have", "Medium", null], ["Bathroom & Toilet", "Toilet Brush", "Purchased", "Medium", 5000.0], ["Bathroom & Toilet", "Plunger", "Need to Buy", "Medium", null], ["Bathroom & Toilet", "Soap Dispenser / Dish", "Purchased", "Medium", 400.0], ["Bathroom & Toilet", "Toothbrush Holder", "Purchased", "Medium", 4500.0], ["Bathroom & Toilet", "Bathroom Bin", "Need to Buy", "Medium", null], ["Bathroom & Toilet", "Mirror", "Purchased", "Medium", 3000.0], ["Bathroom & Toilet", "Storage / Shelving", "Need to Buy", "Medium", null], ["Bathroom & Toilet", "Tub", "Purchased", "Medium", 1640.0], ["Bathroom & Toilet", "Toilet Paper", "Purchased", "Medium", 2200.0], ["Bathroom & Toilet", "Air Freshener", "Need to Buy", "Medium", null]];
@@ -673,6 +715,7 @@ function ensureTg(){
   ['tg','funds','people','uid_p1','uid_p2','pname_p1','pname_p2','settles'].forEach(k=>{if(k in S)delete S[k]});
   if(!S.aptPlan||typeof S.aptPlan!=='object')S.aptPlan={monthly:50000,cash:null};
   Object.entries(S.budget||{}).forEach(([k,b])=>{if(b.fixed==null)b.fixed=!!FIXED[k]});
+  (S.goals||[]).forEach((g,i)=>{if(!g.id)g.id=Date.now()+i});
   /* bills saved before payment tracking: take the day from the "Nov 5" label and owe nothing before today */
   (S.bills||[]).forEach(b=>{if(!b.day)b.day=Math.min(28,Math.max(1,parseInt(String(b.due||'').replace(/\D+/g,' ').trim().split(' ').pop())||1));if(!b.start)b.start=iso(new Date());if(!b.cat)b.cat=billCat(b.name)});
   if(Array.isArray(S.cards)){
@@ -758,6 +801,7 @@ function payBill(b,ts){
 function undoTx(x){
   const amt=-x.a;if(S.budget[x.c])S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent-amt).toFixed(2));
   S.acc.GYD=+(S.acc.GYD+amt).toFixed(2);S.tx.splice(S.tx.indexOf(x),1);
+  if(x.goal){const g=(S.goals||[]).find(y=>y.id===x.goal);if(g){g.s=Math.max(0,+(g.s-amt).toFixed(2));g.hist=(g.hist||[]).filter(h=>h.ts!==x.ts)}}
   if(x.bill){const b=(S.bills||[]).find(y=>y.id===x.bill);if(b&&b.paidFor===x.billKey)b.paidFor=null;refreshBills()}
 }
 /* autopay: record bills whose due date has come; returns the bills paid */
@@ -950,6 +994,7 @@ function aiContext(){
   {const F=flexLeft(M),inc=+S.income||0;L.push(`EVERYDAY SPENDING: ${fmt(F.rem)} left of ${fmt(F.lim)} in flexible categories, about ${fmt(F.rem/c.left)} a day (${listAnd(F.fixed)||'no categories'} set aside as fixed costs).`);
    if(inc>0)L.push(`PLAN: monthly salary ${fmt(inc)}, limits assigned ${fmt(M.tl)}, ${inc-M.tl>=0?fmt(inc-M.tl)+' not yet assigned':fmt(M.tl-inc)+' more assigned than earned'}.`)}
   L.push(`BALANCES: ${fmt(S.acc.GYD,'G$')} GYD, ${fmt(S.acc.USD,'US$')} USD, ${fmt(S.acc.EUR,'€')} EUR, ${fmt(S.acc.GBP,'£')} GBP. Total about ${fmt(total())}. Exchange rate used: 209 G$ per US$1.`);
+  (S.cycles||[]).slice(0,3).forEach((x,i)=>{if(!i)L.push('PAST CYCLES (newest first):');L.push(`- ${x.start} to ${x.end}: planned ${fmt(sum(x.cats.map(c=>c.l)))}, spent ${fmt(sum(x.cats.map(c=>c.s)))}, income ${fmt(x.inc)}; over: ${x.cats.filter(c=>c.s>c.l).map(c=>c.k).join(', ')||'none'}`)});
   if(S.goals&&S.goals.length){L.push('GOALS:');S.goals.forEach(g=>L.push(`- ${g.n}: ${fmt0(g.s)} saved of ${fmt0(g.t)}`))}
   const bills=(S.bills||[]).filter(b=>!b.paid);if(bills.length){L.push('BILLS COMING UP:');bills.forEach(b=>L.push(`- ${b.name} ${fmt(b.amt)} due ${b.due}${b.auto?' (auto-pay)':''}`))}
   L.push('RECENT TRANSACTIONS (newest first):');(S.tx||[]).slice(0,14).forEach(t=>{const w='';L.push(`- ${txDate(t)}: ${t.n} (${t.c}) ${fmt(t.a)}${w?' by '+w:''}`)});
@@ -1015,6 +1060,11 @@ document.addEventListener('click',e=>{
   let el=t.closest('[data-scroll]');if(el){$('.cards')?.scrollBy({left:+el.dataset.scroll*246,behavior:'smooth'});return}
   el=t.closest('[data-drill]');if(el){ui.drill=el.dataset.drill;modal(drillHTML(ui.drill));return}
   el=t.closest('[data-txdel]');if(el){const x=S.tx[+el.dataset.txdel];if(x){undoTx(x);save();refresh();modal(drillHTML(ui.drill))}return}
+  el=t.closest('[data-goal]');if(el&&!t.closest('#modalroot')){ui.gdel=null;openGoal(+el.dataset.goal);return}
+  el=t.closest('[data-gdel]');if(el){ui.gdel=el.dataset.gdel?+el.dataset.gdel:null;openGoal(ui.goal);return}
+  el=t.closest('[data-gdelgo]');if(el){const i=ui.goal,g=S.goals[i];if(g){if(el.dataset.gdelgo==='move'&&g.s>0){S.acc.GYD=+(S.acc.GYD+g.s).toFixed(2);S.tx.unshift({n:'Closed goal '+g.n,c:'Transfer',a:g.s,d:'Today',cy:S.cycle.id,ts:Date.now()})}
+    S.goals.splice(i,1);ui.gdel=null;save();closeModal();refresh();toast(`${g.n} deleted`)}return}
+  el=t.closest('[data-cyc]');if(el){const id=+el.dataset.cyc;ui.cycOpen=ui.cycOpen===id?null:id;refresh();return}
   el=t.closest('[data-cdel]');if(el){const k=el.dataset.cdel;if(k&&S.budget[k]&&!catInUse(k)){removeCat(k);ui.catDel=null;catsChanged(`${k} removed`)}else{ui.catDel=k||null;openCats()}return}
   el=t.closest('[data-cdelgo]');if(el){const k=el.dataset.cdelgo,to=$('#cmvto').value;if(S.budget[k]&&S.budget[to]){removeCat(k,to);ui.catDel=null;catsChanged(`${k} removed. Its spending now counts in ${to}`)}return}
   el=t.closest('[data-billpay]');if(el){const b=S.bills.find(x=>x.id==el.dataset.billpay);if(b&&!b.paid){payBill(b);save();refresh();toast(`${b.name} paid: ${fmt(b.amt)} from your Salary account`)}return}
@@ -1073,7 +1123,7 @@ document.addEventListener('click',e=>{
   if(a==='qa'){openQuick('expense');return}
   if(a==='qa-bal'){openQuick('balance');return}
   if(a==='newcycle'){ui.cc=!ui.cc;refresh();return}
-  if(a==='newcycle-yes'){Object.values(S.budget).forEach(b=>b.spent=0);S.cycle={start:iso(new Date()),id:S.cycle.id+1};ui.cc=false;const pay=+S.income||0;if(pay>0){S.acc.GYD=+(S.acc.GYD+pay).toFixed(2);S.paidCycle=S.cycle.id}save();refresh();toast(pay>0?`New cycle started. ${fmt(pay,'G$')} salary added to your Salary account`:'New 30-day cycle started');return}
+  if(a==='newcycle-yes'){snapCycle();S.incomeExtra=0;Object.values(S.budget).forEach(b=>b.spent=0);S.cycle={start:iso(new Date()),id:S.cycle.id+1};ui.cc=false;const pay=+S.income||0;if(pay>0){S.acc.GYD=+(S.acc.GYD+pay).toFixed(2);S.paidCycle=S.cycle.id}save();refresh();toast(pay>0?`New cycle started. ${fmt(pay,'G$')} salary added to your Salary account`:'New 30-day cycle started');return}
   if(a==='cleo-ask'){openChat(true);setTimeout(()=>ask('How is my budget?'),450);return}
   if(a==='chat-close'){openChat(false);return}
   if(a==='mclose'){if(t.classList.contains('modal-bg')||t.closest('[data-x]'))closeModal();return}
@@ -1092,6 +1142,8 @@ document.addEventListener('change',e=>{
   if(k){const [id,fld]=k.dataset.ck.split(':'),r=curList().items.find(x=>x.id==id);r[fld]=fld==='c'?(k.value===''?null:Math.max(0,+k.value)):k.value;if(fld==='c'&&r.c!=null&&isG(curList()))S.prices[r.i.toLowerCase()]=r.c;save();refresh();return}
   const ta=e.target.closest('[data-txa]');
   if(ta){const x=S.tx[+ta.dataset.txa];if(x){const nb=Math.max(0,+ta.value||0),diff=nb-(-x.a);S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent+diff).toFixed(4));S.acc.GYD=+(S.acc.GYD-diff).toFixed(2);x.a=-nb;save();refresh();modal(drillHTML(ui.drill))}return}
+  const ge=e.target.closest('[data-gedit]');
+  if(ge){const g=S.goals[ui.goal];if(!g)return;if(ge.dataset.gedit==='n'){const v=ge.value.trim();if(v)g.n=v;else ge.value=g.n}else{const v=+ge.value;if(v>0)g.t=v;else ge.value=Math.round(g.t)}save();refresh();openGoal(ui.goal);return}
   const cn=e.target.closest('[data-cname]');
   if(cn){const old=cn.dataset.cname,n=cn.value.trim().replace(/\s+/g,' ');if(n===old)return;const er=catNameErr(n,old);if(er){cn.value=old;toast(er);return}renameCat(old,n);if(ui.catDel===old)ui.catDel=n;catsChanged(`Renamed to ${n}`);return}
   const cli=e.target.closest('[data-climit]');
@@ -1123,7 +1175,7 @@ document.addEventListener('submit',e=>{
   if(f.id==='renform'){const v=$('#rname').value.trim();if(v){curList().name=v;ui.ren=false;save();refresh();toast('List renamed')}return}
   if(f.id==='secform'){const v=f.querySelector('input').value.trim(),cl=curList();if(v){const ex=[...cl.groups,...cl.items.map(x=>x.a)];if(ex.includes(v)){toast('That section already exists');return}cl.groups.push(v);save();refresh();toast('Section added')}return}
   if(f.dataset.area){const v=f.querySelector('input').value.trim();if(v){curList().items.push({id:Date.now(),a:f.dataset.area,i:v,s:'Need to Buy',p:'Medium',c:null,n:'',q:''});save();refresh();toast('Item added')}return}
-  if(f.id==='goalform'){S.goals.push({n:$('#gname').value.trim(),t:+$('#gtarget').value,s:0});save();refresh();toast('Goal added');return}
+  if(f.id==='goalform'){S.goals.push({id:Date.now(),n:$('#gname').value.trim(),t:+$('#gtarget').value,s:0});save();refresh();toast('Goal added');return}
   if(f.id==='xferform'){
     const acct=$('#xfrom').value,amt=+$('#xamt').value,c=S.contacts[ui.contact],inn=ui.dir==='in',ref=($('#xref')?.value||'').trim(),note=($('#xnote')?.value||'').trim(),sym=SYMS[acct];
     if(!(amt>0))return;
@@ -1147,6 +1199,10 @@ document.addEventListener('submit',e=>{
     if($('#nc-j')&&$('#nc-j').checked){const jj=jload();jj.cards.push(card);jsave(jj)}else{S.cards.push(card);save()}
     ui.sel=id;ui.newId=id;closeModal();refresh();ui.newId=null;toast('New card added');setTimeout(()=>$('.cards')?.scrollTo({left:1e5,behavior:'smooth'}),50);return}
   if(f.id==='setupform'){saveSetup();return}
+  if(f.id==='goalmoney'){const i=+f.dataset.i,g=S.goals[i],a=+$('#gm-a').value,out=e.submitter&&e.submitter.value==='out',fromMain=$('#gm-f').checked;if(!g||!(a>0))return;
+    if(out&&a>g.s){toast(`${g.n} only holds ${fmt(g.s)}`);return}
+    if(fromMain&&!out&&a>S.acc.GYD){toast('Your Salary account does not have that much');return}
+    goalMoney(i,a,out,$('#gm-n').value.trim(),fromMain);save();refresh();openGoal(i);toast(`${fmt(a)} ${out?'taken out of':'added to'} ${g.n}`);return}
   if(f.id==='catadd'){const n=$('#ca-n').value.trim().replace(/\s+/g,' '),er=catNameErr(n);if(er){toast(er);return}
     S.budget[n]={limit:Math.max(0,+$('#ca-l').value||0),spent:0,fixed:$('#ca-f').checked};catsChanged(`${n} added`);setTimeout(()=>$('#ca-n')?.focus(),30);return}
   if(f.id==='qaform'){saveQuick();return}
@@ -1161,7 +1217,7 @@ $('#chatform').addEventListener('submit',()=>{});
 $('#quick').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!AI.busy)ask(b.textContent)});
 $('#mascot').addEventListener('click',()=>openChat(true));
 $('#mascot').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openChat(true)}});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();openChat(false);$('#bellpop').hidden=true}});
+document.addEventListener('keydown',e=>{const g=e.target.closest&&e.target.closest('[data-goal]');if(g&&(e.key==='Enter'||e.key===' ')){e.preventDefault();ui.gdel=null;openGoal(+g.dataset.goal);return}if(e.key==='Escape'){closeModal();openChat(false);$('#bellpop').hidden=true}});
 document.addEventListener('mouseover',e=>{const g=e.target.closest('.bar-g');if(!g)return;const w=g.closest('.chart-wrap'),tip=$('.tip',w);tip.textContent=g.dataset.tip;tip.style.left=g.dataset.tx+'%';tip.style.top=g.dataset.ty+'%';tip.style.opacity=1});
 document.addEventListener('mouseout',e=>{const g=e.target.closest('.bar-g');if(g)$('.tip',g.closest('.chart-wrap')).style.opacity=0});
 document.addEventListener('click',e=>{if(!e.target.closest('#bellpop')&&!e.target.closest('[data-act="bell"]'))$('#bellpop').hidden=true;if(!e.target.closest('#userpop')&&!e.target.closest('[data-act="avatar"]'))$('#userpop').hidden=true},true);
@@ -1307,7 +1363,7 @@ function prepState(){
   try{if(!localStorage.getItem('codear-wiped2:'+KEY)){wipeAll();localStorage.setItem('codear-wiped2:'+KEY,'1');save()}}catch(_){}
   if(S.sv!==SAMPLE_V){Object.assign(S,sampleData());save()}
   if(toGYD())save();
-  const oldBills=(S.bills||[]).some(b=>!b.start);
+  const oldBills=(S.bills||[]).some(b=>!b.start)||(S.goals||[]).some(g=>!g.id);
   ensureTg();if(oldBills)save();
   S.fav=S.fav||{};S.prices=S.prices||{};S.hist=S.hist||{};
   if(!S.check){S.check=seedCheck();save()}
