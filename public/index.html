@@ -931,7 +931,7 @@ function wallet(){
     <div class="card"><div class="row"><div><h3>Currencies</h3><div class="hint">Your live balances</div></div><button class="link" data-act="rates">${ic('refresh')}Refresh rates</button></div>
       <div style="margin-top:8px">${cur.map(([k,n,col,s],ci)=>`<div class="cur" style="--i:${ci}"><div class="flag" style="background:${col}">${k.slice(0,2)}</div><div><b>${k}</b><small>${n}</small></div><div class="meter"><i data-w="${Math.max(3,S.acc[k]*S.rate[k]/tot*100).toFixed(1)}"></i></div><div class="amt" data-count="${S.acc[k]}" data-f="${s}">0</div></div>`).join('')}</div></div>
     <div class="card"><div class="row"><div><h3>Upcoming Bills</h3><div class="hint">Due in the next 2 weeks</div></div><button class="btn sm dark" data-act="setup">Edit bills</button></div>
-      <div style="margin-top:8px">${S.bills.map(b=>`<div class="bill ${b.paid?'paid':''}"><div class="ic-b">${ic(b.ic)}</div><div><b>${b.name}</b><small>${b.paid?'Paid':`${b.due} · in ${b.days} days`}</small></div><b>${fmt(b.amt)}</b><button class="sw" role="switch" aria-checked="${!!b.auto}" aria-label="Autopay ${b.name}" data-bill="${b.id}"></button></div>`).join('')}</div>
+      <div style="margin-top:8px">${S.bills.map(b=>`<div class="bill ${b.paid?'paid':''}"><div class="ic-b">${ic(b.ic)}</div><div><b>${esc(b.name)}</b><small>${b.paid?'Paid':`${b.due} · in ${b.days} days`}</small></div><b>${fmt(b.amt)}</b><button class="sw" role="switch" aria-checked="${!!b.auto}" aria-label="Autopay ${esc(b.name)}" data-bill="${b.id}"></button></div>`).join('')}</div>
       <div class="hint" style="margin-top:10px">Toggle autopay. Bills are paid from your GYD balance on the due date.</div></div>
   </div>`;
 }
