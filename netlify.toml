@@ -3,6 +3,14 @@
   publish = "public"
   command = ""
 
+# Netlify's secret scanner blocks a deploy when an environment variable's value appears in the site files.
+# The Supabase URL and publishable key are meant to be public (they ship to the browser in public/config.js,
+# and row level security protects the data), so they are excluded here. Everything else, including
+# ANTHROPIC_API_KEY, is still scanned.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY"
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "sb_publishable_UuSPjss-F8lmPLiA2Jalmg_9nWtDvWl"
+
 # Cleo's AI answers (netlify/functions/cleo.mjs, served at /api/cleo).
 [functions]
   directory = "netlify/functions"
