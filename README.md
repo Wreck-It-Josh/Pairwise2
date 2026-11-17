@@ -38,7 +38,7 @@ With a free Supabase project the app gets real accounts, a cloud backup of each 
 
 **2. Connect the app**
 
-In Supabase, open **Project Settings > API**. Copy the **Project URL** and the **anon public** key into [`public/config.js`](public/config.js). The anon key is designed to be public. The row level security rules in the schema make sure people can only read their own budget and their own household's plans. Never put the `service_role` key in the app.
+In Supabase, copy the **Project URL** (shown under **Connect**, or **Project Settings > Data API**) and the **Publishable key** (**Project Settings > API Keys**, starts with `sb_publishable_`) into [`public/config.js`](public/config.js). On older projects the publishable key is called the legacy **anon public** key, and either one works. This key is designed to be public. The row level security rules in the schema make sure people can only read their own budget and their own household's plans. Never put a **Secret** key (`sb_secret_...`, or the legacy `service_role` key) in the app or in Netlify.
 
 **3. Deploy to Netlify**
 
@@ -107,7 +107,7 @@ pairwise/
 │   ├── styles.css      # all styles
 │   ├── app.js          # all app logic (state, views, events)
 │   ├── config.js       # Supabase URL + anon key (empty = device-only mode)
-│   ├── vendor/supabase.js  # supabase-js 2.45.4 client, bundled so no CDN is needed
+│   ├── vendor/supabase.js  # supabase-js 2.118.0 client, bundled so no CDN is needed
 │   └── icon-light.svg, icon-dark.svg  # favicons, swapped with the theme
 ├── netlify/functions/cleo.mjs  # Cleo's AI answers (checks Supabase login, calls Claude)
 ├── supabase/schema.sql # database tables, security rules and household functions
