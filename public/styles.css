@@ -6,6 +6,7 @@
   --accent:#e8622a; --accent-2:#f58a4f; --accent-soft:#fdece3;
   --good:#2f9e6a; --bad:#d4493a; --warn:#d99a1f;
   --dark:#141416; --on-dark:#ffffff;
+  --brand:#E8590C; --brand-ink:#111111;
   --shadow:0 1px 2px rgba(20,20,30,.04),0 8px 28px rgba(20,20,30,.05);
   --font:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -14,11 +15,13 @@
   --ground:#0c0c0e; --shell:#141416; --card:#1b1b1e; --card-2:#202024;
   --ink:#f4f2ef; --muted:#8e8e96; --line:#2a2a2e; --chip:#26262a;
   --pill:#f4f2ef; --on-pill:#111111; --accent-soft:#3a2216;
+  --brand:#FF7A1F; --brand-ink:#FFFFFF;
   --dark:#0a0a0b; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.25); color-scheme:dark}}
 :root[data-theme="dark"]{
   --ground:#0c0c0e; --shell:#141416; --card:#1b1b1e; --card-2:#202024;
   --ink:#f4f2ef; --muted:#8e8e96; --line:#2a2a2e; --chip:#26262a;
   --pill:#f4f2ef; --on-pill:#111111; --accent-soft:#3a2216;
+  --brand:#FF7A1F; --brand-ink:#FFFFFF;
   --dark:#0a0a0b; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.25); color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -34,6 +37,13 @@ svg{display:block}
 .shell{max-width:1240px;margin:0 auto;background:var(--shell);border-radius:34px;padding:22px 30px 40px;min-height:calc(100vh - 32px);position:relative}
 header.top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;margin-bottom:26px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
+/* Pairwise mark: orange bar over an ink bar; tokens flip to orange-over-white in dark mode. */
+.mark{width:32px;height:auto;flex:none;overflow:visible}
+.mark .mk-a{fill:var(--brand);transition:fill .3s}.mark .mk-b{fill:var(--brand-ink);transition:fill .3s}
+.mark.mono{width:18px}.mark.mono rect{fill:currentColor}
+.brand .wm{font-size:20px;font-weight:700;letter-spacing:-.03em;color:var(--brand-ink);transition:color .3s}
+.brand .wm b{color:var(--brand);font-weight:inherit;margin-left:-.03em;transition:color .3s}
+
 .logo{width:38px;height:38px;border-radius:50%;background:linear-gradient(145deg,var(--accent-2),var(--accent));color:#fff;display:grid;place-items:center;font-weight:700;font-size:19px;box-shadow:0 4px 12px rgba(232,98,42,.35)}
 nav.pills{display:flex;gap:8px;justify-self:center}
 .pill{height:38px;padding:0 17px;border-radius:999px;background:var(--card);box-shadow:var(--shadow);display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--ink);transition:background .25s,color .25s,transform .15s}
@@ -153,7 +163,7 @@ h1{margin:0;font-size:34px;font-weight:600;letter-spacing:-.035em;line-height:1.
 .cc.flip>div{transform:rotateY(180deg)}
 @keyframes ccspin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
 .cc.spin>div{animation:ccspin .7s cubic-bezier(.2,.7,.2,1)}
-.cc.sel .face{box-shadow:0 0 0 3px var(--accent),0 12px 22px rgba(30,20,10,.22)}
+.cc.picked .face{box-shadow:0 0 0 3px var(--accent),0 12px 22px rgba(30,20,10,.22)}
 .cc{transition:transform .35s cubic-bezier(.2,.8,.2,1),filter .35s}
 .cc:hover{transform:translateY(-8px);filter:drop-shadow(0 16px 18px rgba(30,20,10,.22))}
 .face:not(.back)::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 32%,rgba(255,255,255,.3) 50%,transparent 68%);transform:translateX(-130%);transition:transform .9s ease}
@@ -617,3 +627,358 @@ p.insight b{color:var(--ink);font-weight:600}
 .hero .jshare{margin-top:12px;position:relative}
 .hero .jshare>div{border-color:rgba(255,255,255,.3);font-size:13px}
 .hero .jshare span{color:rgba(255,255,255,.85)}
+
+/* Startup loader: full-screen splash over the app; bars slide in, name rises, bars sway until the page is loaded (min 2.2 s), then it fades. */
+.boot{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:var(--ground);color:var(--brand-ink);
+  transition:opacity .5s ease,visibility 0s linear .5s}
+.boot.done{opacity:0;visibility:hidden}
+.boot-lockup{display:flex;align-items:center;gap:clamp(12px,2.5vw,20px)}
+@media (max-width:520px){.boot-lockup{flex-direction:column;gap:14px}}
+.boot-mark{width:clamp(72px,14vw,96px);height:auto;overflow:visible}
+.boot-bar,.boot-sway{transform-box:fill-box;transform-origin:center}
+.boot .bar-a{fill:var(--brand)}.boot .bar-b{fill:var(--brand-ink)}
+.boot-word{display:inline-flex;font-size:clamp(40px,9vw,64px);font-weight:700;letter-spacing:-.03em;line-height:1.15}
+.boot .clip{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.06em}
+.boot .rise{display:inline-block;transform:translateY(110%)}
+.boot .r2{color:var(--brand)}
+.boot.run .bar-a{animation:boot-in-a .8s cubic-bezier(.2,.8,.2,1) both}
+.boot.run .bar-b{animation:boot-in-b .8s cubic-bezier(.2,.8,.2,1) .12s both}
+.boot.run .r1{animation:boot-rise .6s cubic-bezier(.2,.8,.2,1) .55s forwards}
+.boot.run .r2{animation:boot-rise .6s cubic-bezier(.2,.8,.2,1) .7s forwards}
+.boot.run .sway-a{animation:boot-sway-a 1.4s ease-in-out 1.1s infinite alternate}
+.boot.run .sway-b{animation:boot-sway-b 1.4s ease-in-out 1.1s infinite alternate}
+@keyframes boot-in-a{from{transform:translateX(-80px);opacity:0}to{transform:none;opacity:1}}
+@keyframes boot-in-b{from{transform:translateX(80px);opacity:0}to{transform:none;opacity:1}}
+@keyframes boot-rise{to{transform:translateY(0)}}
+@keyframes boot-sway-a{to{transform:translateX(6px)}}
+@keyframes boot-sway-b{to{transform:translateX(-6px)}}
+@keyframes boot-fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .boot.run .bar-a,.boot.run .bar-b{animation:boot-fade .4s ease both}
+  .boot.run .r1,.boot.run .r2{animation:boot-fade .4s ease .2s both;transform:none}
+  .boot.run .sway-a,.boot.run .sway-b{animation:none}
+  .boot{transition-duration:.2s}
+}
+.boot-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Calendar tab: month grid + summary on the left, selected day / new reminder / coming up on the right. */
+:root{--plan:#6c6fe0}
+.cal{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:16px;align-items:start}
+@media (max-width:1000px){.cal{grid-template-columns:minmax(0,1fr)}}
+.cal .card{border-radius:28px;padding:24px}
+.k-bill{--k:var(--warn)}.k-inc{--k:var(--good)}.k-rem{--k:var(--accent)}.k-sav{--k:var(--plan)}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cnav{display:flex;align-items:center;gap:6px}
+.cnav h2{margin:0 4px;font-size:22px;font-weight:600;letter-spacing:-.03em;min-width:0}
+.cnav .link{margin-left:8px}
+.cseg{display:inline-flex;background:var(--chip);border-radius:999px;padding:4px}
+.cseg button{height:34px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:500;color:var(--muted);transition:.2s}
+.cseg button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow);font-weight:600}
+/* month */
+.cdow,.cdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.cdow span{text-align:center;font-size:12px;color:var(--muted);padding-bottom:6px}
+.cd{min-height:92px;border-radius:16px;background:var(--chip);padding:10px 10px 8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;min-width:0;border:2px solid transparent;transition:background .2s,border-color .2s}
+.cd.blank{background:none}
+.cd:not(.blank):hover{background:var(--line)}
+.cd.picked{border-color:var(--ink);background:var(--card)}
+.dn{font-size:13px;font-weight:600;line-height:22px}
+.today .dn{background:var(--accent);color:#fff;border-radius:999px;padding:0 8px;align-self:flex-start}
+.cel{display:grid;gap:3px;min-width:0;width:100%}
+.ce{display:flex;align-items:center;gap:5px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ce>span{overflow:hidden;text-overflow:ellipsis}
+.ce i,.clegend i,.cdots i{width:6px;height:6px;border-radius:50%;background:var(--k);flex:none}
+.cd .more{font-size:11px;color:var(--muted)}
+.cdots{display:none;gap:3px;flex-wrap:wrap}
+.anim .cd:not(.blank){animation:rowIn .5s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i,0)*12ms + 120ms)}
+@media (max-width:620px){
+  .cdow,.cdays{gap:4px}.cd{min-height:54px;padding:6px;border-radius:12px;align-items:center}
+  .cd .cel{display:none}.cdots{display:flex;justify-content:center}.cnav h2{font-size:18px}
+}
+/* week */
+.cweek{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.cwd{min-height:260px;border-radius:16px;background:var(--chip);padding:10px;display:flex;flex-direction:column;gap:10px;text-align:left;border:2px solid transparent;min-width:0}
+.cwd.picked{border-color:var(--ink);background:var(--card)}
+.wdh{display:flex;flex-direction:column;gap:2px}.wdh small{color:var(--muted);font-size:11.5px}
+.cwd .ce{white-space:normal}.none{font-size:11.5px;color:var(--muted)}
+@media (max-width:760px){.cweek{grid-template-columns:minmax(0,1fr)}.cwd{min-height:0;flex-direction:row}.wdh{width:44px;flex:none}}
+/* agenda */
+.cagenda{display:grid;gap:18px}
+.agh{font-size:13px;font-weight:600;color:var(--muted);padding:0 0 4px}
+.agh.today{color:var(--accent)}
+/* legend + totals */
+.clegend{display:flex;gap:18px;flex-wrap:wrap;margin:18px 0 14px;font-size:12.5px;color:var(--muted)}
+.clegend span{display:inline-flex;align-items:center;gap:7px}.clegend i{width:8px;height:8px}
+.csum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.csum>div{background:var(--chip);border-radius:18px;padding:14px 16px;display:grid;gap:2px;min-width:0}
+.csum span{font-size:12px;color:var(--muted)}
+.csum b{font-size:clamp(18px,2vw,22px);font-weight:600;letter-spacing:-.03em;overflow-wrap:anywhere}
+.csum .link{justify-self:start;margin-top:4px}
+@media (max-width:620px){.csum{grid-template-columns:minmax(0,1fr)}}
+/* side panel */
+.cdh{font-size:18px!important;letter-spacing:-.02em}
+.cside .hint{font-size:13px!important}
+.csh{font-size:16px!important;margin:26px 0 10px!important;letter-spacing:-.02em}
+.clist{margin-top:12px;border-top:1px solid var(--line)}
+.crow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.crow .grow{flex:1;min-width:0}.crow b{display:block;font-weight:500;font-size:14px}
+.crow small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.cbox{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;font-weight:600;font-size:15px;color:var(--k);background:color-mix(in srgb,var(--k) 14%,transparent)}
+.cbox .ic{width:17px;height:17px}
+.crow .ca{font-size:14px;font-weight:600;white-space:nowrap}
+.cend{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.cctl{display:flex;align-items:center;gap:4px}
+.cf input:focus-visible,.cf select:focus-visible{outline:none}
+.crow .sw[aria-checked="true"]{background:var(--good)}
+.cdel{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--muted);flex:none}
+.cdel:hover{background:var(--chip);color:var(--bad)}
+.cdel .ic{width:13px;height:13px}
+.cform{display:grid;gap:10px}
+.cf-in,.cf{height:48px;border-radius:14px;background:var(--chip);border:1px solid transparent;font:inherit;font-size:14px;color:var(--ink);width:100%;min-width:0}
+.cf-in{padding:0 16px}
+.cf{display:flex;align-items:center;gap:8px;padding:0 0 0 16px}
+.cf span{color:var(--muted);font-size:13px;white-space:nowrap}
+.cf span::after{content:" ·"}
+.cf input,.cf select{flex:1;min-width:0;height:100%;border:0;background:none;font:inherit;font-size:14px;color:var(--ink);padding:0 14px 0 2px}
+.cf:focus-within,.cf-in:focus{border-color:var(--accent);outline:none}
+.cf select option{color:#111;background:#fff}
+.cform .btn{height:48px;justify-content:center;font-weight:600;font-size:14px;margin-top:4px}
+
+/* =====================================================================
+   Phone layer (< 768px wide, or a phone turned sideways: short touch screen). Desktop and tablet layouts above are unchanged.
+   Bottom tab bar, one-column cards, 44px touch targets, 16px inputs,
+   bottom sheets for pop-ups, swipeable wallet cards, tap-for-details charts.
+   ===================================================================== */
+.tabbar{display:none}
+.lc-hl{stroke:var(--line);stroke-width:1.5;opacity:0;transition:opacity .2s}
+.lc-g:hover .lc-hl,.lc-g.on .lc-hl{opacity:1}
+.cdaym{display:none}
+.morelist{display:grid;gap:8px;margin-top:14px}
+.morelist button{display:flex;align-items:center;gap:14px;min-height:52px;padding:0 14px;border-radius:16px;background:var(--chip);font-size:16px;font-weight:500;text-align:left}
+.morelist button[aria-current="page"]{background:var(--pill);color:var(--on-pill)}
+.morelist .ico{background:var(--card);color:var(--ink)}
+
+@media (max-width:767.98px), (max-height:500px) and (pointer:coarse){
+  :root{--tabbar-h:64px;--bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
+
+  /* frame: cards run full width with 16px side padding (from body) and 12px gaps */
+  body{background:var(--shell);padding-block:0}
+  .shell{background:none;border-radius:0;padding:12px 0 0;min-height:0}
+  #main{padding-bottom:calc(var(--bottom) + 96px)}
+  .grid,.stack,.tg2,.cal{gap:12px}
+  .grid,.g-2,.g-3,.g-4,.g-5,.g-dash,.tg2,.gx,.two,.cal,.csum{grid-template-columns:minmax(0,1fr)!important}
+  .grid>*,.g-dash>*{grid-column:auto!important;grid-row:auto!important}
+  .card{padding:18px;border-radius:22px}
+  .page-head{margin-bottom:14px;gap:12px}
+  h1{font-size:26px}
+
+  /* header: brand + bell/theme/account; the pill menu moves to the bottom tab bar */
+  header.top{grid-template-columns:1fr auto;margin-bottom:16px;gap:8px}
+  nav.pills{display:none}
+  .tools{gap:8px}
+  .round,.avatar{width:44px;height:44px}
+
+  /* bottom tab bar */
+  .tabbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;z-index:46;left:0;right:0;bottom:0;
+    height:var(--bottom);padding:0 max(4px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(4px,env(safe-area-inset-left,0px));
+    background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+  .tabbar[hidden]{display:none}
+  .tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:var(--tabbar-h);color:var(--muted);font-size:11px;font-weight:500}
+  .tabbar button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tabbar .ic{width:22px;height:22px}
+  .tabbar button[aria-current="page"]{color:var(--ink);font-weight:600}
+  .tabbar button[aria-current="page"] .ic{color:var(--accent)}
+
+  /* floating things sit above the tab bar, never on it */
+  .qafab{bottom:calc(var(--bottom) + 12px);height:48px}
+  .mascot{bottom:calc(var(--bottom) + 8px);width:60px}
+  .mascot svg{width:60px;height:66px}
+  .mascot .bubble{display:none}
+  .toast{bottom:calc(var(--bottom) + 76px)}
+  .chat{top:auto;bottom:0;right:0;left:0;width:100%;height:min(88dvh,640px);max-height:none;border-radius:24px 24px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+
+  /* touch targets: at least 44 x 44 */
+  button,select,.in,.cell,[role="button"]:not(.cc):not(.mascot){min-height:44px}
+  .btn,.btn.sm,.tab,.pill,.rail,.ltab,.qchip,.sel,.sel.sm,.link,.add{min-height:44px}
+  .btn.sm{padding:0 16px}
+  .link{padding:0 4px}
+  .tabs{gap:8px}
+  .arw,.xdel,.cdel,.secdel,.grip,.xf,.cnav .arw{min-width:44px;min-height:44px;width:44px;height:44px}
+  .secmv button{min-width:44px}
+  .swc{width:44px;height:44px}
+  .swr{gap:10px}
+  /* small visual controls get an invisible 44px hit area */
+  .sw,.cb{position:relative}
+  .sw::before,.cb::before{content:"";position:absolute;left:50%;top:50%;width:max(100%,48px);height:max(100%,44px);transform:translate(-50%,-50%)}
+  .sw{min-height:0}
+  .cb{min-height:0}
+  .sel select{min-height:42px}
+
+  /* inputs: 16px text so iOS does not zoom */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea,.in,.cell,.chat form input{font-size:16px!important}
+  .in{height:48px}
+
+  /* no hover on touch: drop lift effects that would stick after a tap */
+  .cc:hover,.btn:hover,.pill:hover,.ltab:hover,.rail:hover,.qchip:hover,.arw:hover{transform:none}
+
+  /* pop-ups become bottom sheets that stay above the keyboard */
+  .modal-bg{place-items:end stretch;padding:0;padding-bottom:var(--kb,0px)}
+  .modal{width:100%!important;max-width:none;border-radius:24px 24px 0 0;max-height:calc(100dvh - var(--kb,0px) - 24px);overflow-y:auto;overscroll-behavior:contain;
+    padding:12px 18px calc(18px + env(safe-area-inset-bottom,0px));animation:sheetUp .32s cubic-bezier(.2,.8,.2,1)}
+  .modal::before{content:"";display:block;width:40px;height:5px;border-radius:999px;background:var(--line);margin:0 auto 14px}
+  .modal form>button[type="submit"],.modal form>.btns,.modal>.btns{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom,0px));z-index:2;box-shadow:0 0 0 8px var(--card),0 -10px 14px 6px var(--card)}
+  .modal form>button[type="submit"]{width:100%}
+  .modal [style*="max-height:62vh"]{max-height:none!important;overflow:visible!important}
+
+  /* charts: full width, bigger labels, taller plot */
+  .axis{font-size:19px}
+  .chart-wrap svg{min-height:180px}
+  .tip{font-size:13px;padding:8px 12px;white-space:normal;width:max-content;max-width:min(240px,100%);text-align:center}
+  .bar-g.on .bar-r{fill:var(--accent)}
+
+  /* wallet: swipe sideways between cards, one at a time */
+  .cards{scroll-snap-type:x mandatory;gap:12px;margin-inline:-18px;padding-inline:18px;scroll-padding-inline:18px}
+  .cc{flex:0 0 min(86%,300px);height:auto;aspect-ratio:1.6;scroll-snap-align:center;scroll-snap-stop:always}
+
+  /* checklist table: each row becomes a stacked card */
+  .tbl.stk{min-width:0!important}
+  .tbl.stk thead{display:none}
+  .tbl.stk,.tbl.stk tbody{display:block}
+  .tbl.stk tr{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px 8px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+  .tbl.stk td{display:block;padding:0;border:0;width:auto!important;min-width:0}
+  .tbl.stk td.it{min-width:0;font-size:15px}
+  .tbl.stk td.tdel{grid-column:3;grid-row:1}
+  .tbl.stk td[data-l]{grid-column:2/4;display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:8px}
+  .tbl.stk td[data-l]::before{content:attr(data-l);font-size:12px;color:var(--muted)}
+  .tbl.stk select.cell{width:100%}
+  .tbl.stk .cell{background:var(--chip)}
+  .tbl.stk td:first-child{display:grid;place-items:center}
+
+  /* calendar: dots under each date, tapped day's list right below the grid */
+  .cal .card{padding:16px 10px;border-radius:22px}
+  .cal .cside{padding:18px}
+  .chead{padding:0 6px}
+  .cseg{width:100%}.cseg button{flex:1;min-height:40px}
+  .cdow,.cdays{gap:3px}
+  .cd{min-height:48px;padding:5px 2px;border-radius:12px;align-items:center;gap:4px}
+  .cd .cel{display:none}
+  .cdots{display:flex;justify-content:center;min-height:6px}
+  .cnav h2{font-size:18px}
+  .cdaym{display:block;padding:14px 6px 0}
+  .cdaym .cdh{margin:0}
+  .m-hide{display:none}
+  .cweek{grid-template-columns:minmax(0,1fr)}.cwd{min-height:0;flex-direction:row}.wdh{width:44px;flex:none}
+  .crow{gap:10px}
+  .clegend{padding:0 6px;gap:12px}
+  .csum{padding:0 6px}
+}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:.4}}
+@media (prefers-reduced-motion:reduce){.modal{animation:none}}
+/* phone landscape: short screens keep the tab bar compact */
+@media (max-width:767.98px) and (max-height:480px), (max-height:500px) and (pointer:coarse){:root{--tabbar-h:52px}.tabbar button{flex-direction:row;gap:6px}.modal{max-height:calc(100dvh - var(--kb,0px) - 8px)}}
+@media (max-width:767.98px), (max-height:500px) and (pointer:coarse){
+  .sel{height:44px}.sel select{min-height:44px}
+  [data-range]{min-width:44px;min-height:44px}
+  input[data-limit]{height:44px!important;min-height:44px}
+  .cseg button{min-height:44px}
+  .cal .cmain{padding:16px 4px}
+  .cdow,.cdays{gap:2px}
+  .chead,.cdaym,.clegend,.csum{padding-inline:12px}
+}
+
+/* 861-1240px: eight menu pills no longer fit beside the logo and tools, so the pill row scrolls inside the header */
+@media (min-width:861px) and (max-width:1240px){header.top{grid-template-columns:auto minmax(0,1fr) auto}nav.pills{min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px;justify-self:stretch}nav.pills::-webkit-scrollbar{display:none}.pill{flex:none}}
+@media (max-width:767.98px), (max-height:500px) and (pointer:coarse){[data-range]+[data-range]{margin-left:8px}}
+@media (max-width:767.98px), (max-height:500px) and (pointer:coarse){
+  /* larger axis labels need room on the left */
+  .chart-wrap{padding-left:16px}.chart-wrap svg{overflow:visible}
+}
+
+/* Narrow phones (≤ 400px): the calendar card runs closer to the screen edges so each day is ≥ 44px wide */
+@media (max-width:400px){
+  .cal .cmain{margin-inline:-12px;padding-inline:4px}
+}
+
+/* Touch tablets (iPad size and up, finger not mouse): keep the desktop layout and top menu,
+   but use touch sizing and keyboard-safe bottom sheets. Computers with a mouse are unaffected. */
+@media (pointer:coarse) and (min-width:768px) and (min-height:501px){
+  /* touch targets: at least 44 x 44, 8px apart */
+  button,select,.in,.cell,[role="button"]:not(.cc):not(.mascot):not(.cd){min-height:44px}
+  .btn,.btn.sm,.tab,.pill,.rail,.ltab,.qchip,.sel,.sel.sm,.link,.add,.lang{min-height:44px}
+  .btn.sm{padding:0 16px}.link{padding:0 4px}.lang{padding:0 10px}
+  .tabs,nav.pills{gap:8px}
+  .round,.avatar{width:44px;height:44px}
+  .arw,.xdel,.cdel,.secdel,.grip,.xf{min-width:44px;min-height:44px;width:44px;height:44px}
+  .secmv button,[data-range]{min-width:44px}
+  [data-range]+[data-range]{margin-left:8px}
+  .swc{width:44px;height:44px}
+  .sel{height:44px}.sel select{min-height:44px}
+  input[data-limit]{height:44px!important}
+  .cseg button{min-height:44px}
+  .sw,.cb{position:relative;min-height:0}
+  .sw::before,.cb::before{content:"";position:absolute;left:50%;top:50%;width:max(100%,48px);height:max(100%,44px);transform:translate(-50%,-50%)}
+  /* 16px field text so iOS does not zoom */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea,.in,.cell,.chat form input{font-size:16px!important}
+  .in{height:48px}
+  /* no hover lift sticking after a tap */
+  .cc:hover,.btn:hover,.pill:hover,.ltab:hover,.rail:hover,.qchip:hover,.arw:hover{transform:none}
+  /* pop-ups: bottom sheets that stay above the on-screen keyboard */
+  .modal-bg{place-items:end center;padding:0 16px;padding-bottom:var(--kb,0px)}
+  .modal{width:min(560px,100%)!important;border-radius:26px 26px 0 0;max-height:calc(100dvh - var(--kb,0px) - 40px);overflow-y:auto;overscroll-behavior:contain;
+    padding:12px 26px calc(22px + env(safe-area-inset-bottom,0px));animation:sheetUp .32s cubic-bezier(.2,.8,.2,1)}
+  .modal::before{content:"";display:block;width:40px;height:5px;border-radius:999px;background:var(--line);margin:0 auto 14px}
+  .modal form>button[type="submit"],.modal form>.btns,.modal>.btns{position:sticky;bottom:calc(-22px - env(safe-area-inset-bottom,0px));z-index:2;box-shadow:0 0 0 8px var(--card),0 -10px 14px 6px var(--card)}
+  .modal [style*="max-height:62vh"]{max-height:none!important;overflow:visible!important}
+  /* chart details on tap */
+  .tip{font-size:13px;padding:8px 12px;white-space:normal;width:max-content;max-width:min(260px,100%);text-align:center}
+  .bar-g.on .bar-r{fill:var(--accent)}
+}
+@media (pointer:coarse) and (min-width:768px) and (min-height:501px) and (prefers-reduced-motion:reduce){.modal{animation:none}}
+@media (pointer:coarse) and (min-width:768px) and (min-height:501px){
+  .cb{z-index:1}            /* its enlarged tap area sits above the neighbouring table cell */
+  .lang{min-width:44px}
+}
+.contact .addc{background:var(--chip);color:var(--ink);border:2px dashed var(--line)}
+.addcf{margin:4px 0 10px}
+
+/* phone fixes: keep the sync label visible, one-line scrolling tabs, wrap crowded card headers */
+@media (max-width:767.98px){
+  .syncb span{display:inline}.syncb{padding:0 12px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px;scroll-padding-inline:16px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:none}
+  .row.wrapm{flex-wrap:wrap;gap:12px}
+}
+
+/* phone: the + Add button and Cleo slide away while scrolling down or typing, and come back on scroll up */
+@media (max-width:767.98px){
+  .qafab{transition:translate .3s cubic-bezier(.2,.8,.2,1),opacity .25s}
+  .mascot{transition:transform .7s cubic-bezier(.2,.8,.2,1),translate .3s cubic-bezier(.2,.8,.2,1),opacity .25s}
+  body.fl-away .qafab,body.fl-away .mascot{translate:0 calc(100% + 24px);opacity:0;pointer-events:none}
+}
+@media (prefers-reduced-motion:reduce){.qafab,.mascot{transition:opacity .2s}body.fl-away .qafab,body.fl-away .mascot{translate:none}}
+
+/* checklist */
+.secadd{margin-top:16px}
+@media (max-width:767.98px){
+  /* section header: title and buttons on one line, progress bar full width underneath */
+  .chk>.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px 2px}
+  .chk>.row>.row{display:contents}
+  .chk>.row>div:first-child{grid-row:1;min-width:0}
+  .chk>.row .secmv,.chk>.row .secdel{grid-row:1}
+  .chk .meter{grid-column:1/-1;grid-row:2;width:auto}
+  /* items: name on top, the four fields in a 2x2 grid with small labels above */
+  .tbl.stk tr{position:relative;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:12px 0 14px 48px}
+  .tbl.stk td:first-child{position:absolute;left:0;top:12px;width:44px!important;height:44px}
+  .tbl.stk td.it{grid-column:1/-1;min-height:44px;display:flex;align-items:center;padding-right:44px}
+  .tbl.stk td.tdel{position:absolute;right:0;top:12px;grid-column:auto;grid-row:auto}
+  .tbl.stk td[data-l]{grid-column:auto;grid-template-columns:minmax(0,1fr);gap:4px}
+  .tbl.stk td[data-l]::before{font-size:11.5px}
+  .tbl.stk select.cell{min-width:0;padding:0 12px;text-overflow:ellipsis}
+  .tbl.stk tr{grid-auto-flow:row dense}
+  .tbl.stk td[data-l="Status"],.tbl.stk td[data-l="Notes"]{grid-column:1/-1}
+  /* reorder with the arrow buttons on phones (dragging needs a mouse) */
+  .chk .grip{display:none}
+  .chk .secmv{flex-direction:row}
+  /* add-a-section: same card look as the sections above it */
+  .secadd{background:var(--card);border-radius:22px;padding:14px;box-shadow:var(--shadow)}
+}

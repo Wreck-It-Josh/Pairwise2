@@ -1,12 +1,15 @@
 {
-  "name": "codear-budget",
+  "name": "pairwise",
   "version": "1.0.0",
   "private": true,
-  "description": "Codear Budget — household budgeting web app",
+  "description": "Pairwise — household budgeting web app",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.5.0"
   }
 }

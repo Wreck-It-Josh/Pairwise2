@@ -9,7 +9,7 @@ const P={
   wallet:'<path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="14.5" r="1"/>',
   pie:'<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
   up:'<path d="M7 17 17 7M8 7h9v9"/>', down:'<path d="M7 7l10 10M17 8v9H8"/>',
-  plus:'<path d="M12 5v14M5 12h14"/>', cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>', more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   coin:'<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.8 1.8 0 0 1 0 3.5h-3a1.8 1.8 0 0 0 0 3.5h4"/>',
   pct:'<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2"/><circle cx="17" cy="17" r="2"/>',
   card:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
@@ -41,6 +41,7 @@ const P={
   bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
   receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   film:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 9 5 3-5 3z"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
   phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'
 };
 const ic=(n,cls='')=>`<svg class="ic ${cls}" viewBox="0 0 24 24">${P[n]||''}</svg>`;
@@ -53,56 +54,123 @@ const sum=a=>a.reduce((x,y)=>x+y,0);
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2200)}
 
 /* ---------- state ---------- */
-let KEY='codear-budget-v2';
-const SAMPLE_V=2;
+let KEY='pairwise-budget-v2';
+const SAMPLE_V=3;
+/* a new person starts with nothing: three empty accounts and the usual budget categories at 0 */
 const sampleData=()=>({
-  sv:SAMPLE_V,units:'gyd',
-  acc:{GYD:385000,USD:420,EUR:80,GBP:60}, rate:{GYD:1/209,USD:1,EUR:1.08,GBP:1.27},
-  cards:[{id:1,cls:'black',name:'Codear Black',last:'4821',exp:'09/28',holder:'Partner 1',def:true},{id:2,cls:'orange',name:'Codear Prime',last:'9031',exp:'03/27',holder:'Partner 1'},{id:3,cls:'blue',name:'Codear Blue',last:'2210',exp:'12/29',holder:'Partner 1'}],
-  bills:[{id:1,name:'Rent',due:'Nov 5',days:3,amt:160000,ic:'home',auto:false},{id:2,name:'Electricity · GPL',due:'Nov 7',days:5,amt:18500,ic:'bolt',auto:false},{id:3,name:'Internet · Flow',due:'Nov 10',days:8,amt:9500,ic:'wifi',auto:true},{id:4,name:'Water · GWI',due:'Nov 12',days:10,amt:2500,ic:'drop',auto:false}],
-  budget:{Housing:{limit:160000,spent:160000},Food:{limit:85000,spent:71000},Transport:{limit:40000,spent:34000},Shopping:{limit:60000,spent:51000},Bills:{limit:45000,spent:38000},Entertainment:{limit:30000,spent:26000}},
-  incomeExtra:0,
-  tx:[
-    {n:'Salary · Partner 1',c:'Income',a:250000,d:'Nov 1'},{n:'Salary · Partner 2',c:'Income',a:190000,d:'Nov 1'},
-    {n:'Bounty Supermarket',c:'Food',a:-18400,d:'Oct 31'},{n:'Fuel',c:'Transport',a:-9000,d:'Oct 30'},
-    {n:'Movie Towne',c:'Entertainment',a:-4800,d:'Oct 29'},{n:'Side income · IT repair job',c:'Income',a:40000,d:'Oct 28'},
-    {n:'Clothing',c:'Shopping',a:-12000,d:'Oct 27'},{n:'Rent',c:'Housing',a:-160000,d:'Oct 26'},
-    {n:'GPL electricity',c:'Bills',a:-17600,d:'Oct 25'},{n:'Market day · Bourda',c:'Food',a:-9800,d:'Oct 24'}
-  ],
-  goals:[{n:'Emergency fund',t:1200000,s:310000},{n:'Apartment setup',t:500000,s:215000},{n:'Anniversary trip',t:180000,s:52000}],
-  contacts:[{n:'Ravi Persaud',c:'#e8622a'},{n:'Shanice Williams',c:'#3c52d9'},{n:'Kevin Singh',c:'#2f9e6a'},{n:'Tiffany Bacchus',c:'#8a5cf5'}],
-  transfers:[{n:'Ravi Persaud',a:25000,d:'Oct 24'},{n:'Shanice Williams',a:12000,d:'Oct 19'}]
+  sv:SAMPLE_V,units:'gyd',income:0,
+  acc:{GYD:0,USD:0,EUR:0,GBP:0}, rate:{GYD:1/209,USD:1,EUR:1.08,GBP:1.27},
+  cards:[{id:1,cls:'black',name:'Salary account',last:'',exp:'',holder:'',def:true,main:true,bal:0},{id:2,cls:'orange',name:'Savings',last:'',exp:'',holder:'',bal:0},{id:3,cls:'blue',name:'Joint account',last:'',exp:'',holder:'',bal:0}],
+  bills:[],
+  budget:{Housing:{limit:0,spent:0},Food:{limit:0,spent:0},Transport:{limit:0,spent:0},Shopping:{limit:0,spent:0},Bills:{limit:0,spent:0},Entertainment:{limit:0,spent:0}},
+  incomeExtra:0,tx:[],goals:[],contacts:[],transfers:[],aptPlan:{monthly:0,cash:null}
 });
 const seed=()=>({...sampleData(),theme:null});
+/* One-time move from the old Codear names to Pairwise. Runs before anything reads storage.
+   Keys: codear-* → pairwise-*, and demo emails @demo.codear.app → @demo.pairwise.app (in keys and
+   in stored values, e.g. joint moves record who added them as "local:<email>"). Real people's
+   emails are never touched. The per-person "wiped2" markers move too, or prepState would wipe them. */
+const DEMO_OLD=/@demo\.codear\.app/g,DEMO_NEW='@demo.pairwise.app';
+(function migrateFromCodear(){
+  try{
+    if(localStorage.getItem('pairwise-migrated1'))return;
+    const old=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('codear-'))old.push(k)}
+    for(const k of old){
+      const nk=k.replace(/^codear-/,'pairwise-').replace('codear-budget-v2','pairwise-budget-v2').replace(DEMO_OLD,DEMO_NEW);
+      if(localStorage.getItem(nk)==null)localStorage.setItem(nk,(localStorage.getItem(k)||'').replace(DEMO_OLD,DEMO_NEW));
+    }
+    localStorage.setItem('pairwise-migrated1','1');
+    old.forEach(k=>localStorage.removeItem(k)); // only after every copy succeeded
+  }catch(e){} // e.g. storage full: old keys are kept and the move is retried next load
+})();
+/* One-time clean start for real testing: drop every saved account, login and budget on this browser. */
+(function resetForTesting(){
+  try{
+    if(localStorage.getItem('pairwise-reset3'))return;
+    const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&/^(pairwise|codear)-/.test(k))ks.push(k)}
+    ks.forEach(k=>localStorage.removeItem(k));
+    localStorage.setItem('pairwise-migrated1','1');localStorage.setItem('pairwise-clean1','1');localStorage.setItem('pairwise-reset3','1');
+  }catch(e){}
+})();
 let S={};
-const SESS_EMAIL=()=>{try{return ((JSON.parse(localStorage.getItem('codear-session')||'null')||{}).email||'').toLowerCase()}catch(e){return ''}};
+/* ---------- Supabase (optional) ----------
+   When public/config.js has a project URL and anon key, accounts, budget backup and joint plans use
+   Supabase (tables in supabase/schema.sql). Without it the app keeps everything in this browser. */
+const CFG=window.PAIRWISE_CONFIG||{};
+const RECOVERY=/type=recovery/.test(location.hash); // opened from a "reset password" email (read before the client clears the URL)
+let SB=null;
+try{if(CFG.supabaseUrl&&CFG.supabaseAnonKey&&window.supabase&&window.supabase.createClient)SB=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})}catch(e){SB=null}
+const sbUser=u=>({id:u.id,email:u.email||'',name:(u.user_metadata&&u.user_metadata.name)||(u.email||'').split('@')[0]});
+function sbErr(e){
+  const m=(e&&e.message)||'';
+  if(/invalid login credentials/i.test(m))return 'Incorrect email or password.';
+  if(/email not confirmed/i.test(m))return 'Confirm your email first. Check your inbox for the link.';
+  if(/already registered|already been registered/i.test(m))return 'An account with this email already exists. Log in instead.';
+  if(/rate limit|too many/i.test(m))return 'Too many tries. Wait a minute and try again.';
+  if(/fetch|network/i.test(m))return 'Could not reach the server. Check your connection and try again.';
+  return m||'Something went wrong. Try again.';
+}
+const SESS_EMAIL=()=>{try{return ((JSON.parse(localStorage.getItem('pairwise-session')||'null')||{}).email||'').toLowerCase()}catch(e){return ''}};
 /* each signed-in person has their own saved data; only joint cards are shared (see jload) */
 let LOCAL_NEW=false,cloud=null,cloudT=0,cloudKey='';
 function loadState(email){
-  const LEG='codear-budget-v2';KEY=email?LEG+':'+email:LEG;
+  const LEG='pairwise-budget-v2';KEY=email?LEG+':'+email:LEG;
   let d=null;try{d=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
   LOCAL_NEW=!d||!d.acc;cloud=null;
   if((!d||!d.acc)&&email){
-    let owner=null,leg=null;try{owner=localStorage.getItem('codear-legacy-owner');leg=JSON.parse(localStorage.getItem(LEG)||'null')}catch(e){}
-    if(!owner&&leg&&leg.acc){d=leg;try{localStorage.setItem('codear-legacy-owner',email)}catch(e){}}
+    let owner=null,leg=null;try{owner=localStorage.getItem('pairwise-legacy-owner');leg=JSON.parse(localStorage.getItem(LEG)||'null')}catch(e){}
+    if(!owner&&leg&&leg.acc){d=leg;try{localStorage.setItem('pairwise-legacy-owner',email)}catch(e){}}
   }
-  if(!d||!d.acc){d=seed();if(email==='nadia@demo.codear.app'){d.acc.GYD=240000;d.fsav=85000}}
+  if(!d||!d.acc)d=seed();
   Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,d);
 }
 loadState(SESS_EMAIL());
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}cloudPush()};
-function cloudPush(){if(!cloud||cloudKey!==KEY)return;clearTimeout(cloudT);cloudT=setTimeout(()=>{try{cloud.set({json:JSON.stringify(S),t:Date.now()}).catch(()=>{})}catch(e){}},2500)}
+const save=()=>{S._t=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}cloudPush()};
+function cloudPush(now){
+  if(!cloud||cloudKey!==KEY)return;clearTimeout(cloudT);
+  const go=()=>{cloudT=0;try{cloud.set({json:JSON.stringify(S),t:Date.now()}).catch(()=>{})}catch(e){}};
+  if(now)go();else cloudT=setTimeout(go,2500);
+}
+/* Supabase: one private row per person in `budgets`. The newer copy wins (S._t is stamped on every save),
+   so changes made on another phone arrive when this one is opened or brought back to the front. */
+let sbSyncing=false;
+async function sbSync(){
+  if(!SB||!user||!user.id||sbSyncing)return;sbSyncing=true;
+  try{
+    const k=KEY,uid=user.id,lt=S._t||0,wasNew=LOCAL_NEW;
+    const {data,error}=await SB.from('budgets').select('data').eq('user_id',uid).maybeSingle();
+    if(error||k!==KEY||!user||user.id!==uid)return;
+    const doc={set:o=>SB.from('budgets').upsert({user_id:uid,data:JSON.parse(o.json),updated_at:new Date().toISOString()}).then(r=>{if(r.error)throw r.error})};
+    const r=data&&data.data;
+    if(r&&r.acc&&(wasNew||(r._t||0)>lt)){
+      if(cloudT){clearTimeout(cloudT);cloudT=0}
+      try{localStorage.setItem('pairwise-wiped2:'+k,'1')}catch(e){}
+      Object.keys(S).forEach(x=>delete S[x]);Object.assign(S,r);LOCAL_NEW=false;cloud=doc;cloudKey=k;prepState();
+      try{localStorage.setItem(k,JSON.stringify(S))}catch(e){}
+      if(ui.ready)refresh();toast(wasNew?'Your data was restored from backup':'Updated with changes from your other device');return;
+    }
+    LOCAL_NEW=false;cloud=doc;cloudKey=k;
+    if(!r||!r.acc||(r._t||0)<lt)cloudPush(true);
+  }catch(e){}finally{sbSyncing=false}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){if(cloudT)cloudPush(true)}
+  else if(SB&&user&&ui.ready&&!cloudT){sbSync();if(J.pull)J.pull()}
+});
 async function cloudSync(){
   try{
+    if(SB)return sbSync();
     if(!window.claude||!claude.use||!user||!user.email)return;
     const k=KEY,[db,u]=await Promise.all([claude.use('db'),claude.use('user')]);if(!db||!u)return;
     const id=await u.id();if(!id||k!==KEY)return;
-    const doc=db.collection('data/users/'+id).doc('bk_'+k.replace(/[^a-z0-9]/gi,'_').slice(0,100));
+    // Backup id keeps the pre-rename (Codear) key so backups made before the rename still restore.
+    const bk=k.replace(/^pairwise-budget-v2/,'codear-budget-v2').replace(/@demo\.pairwise\.app$/,'@demo.codear.app');
+    const doc=db.collection('data/users/'+id).doc('bk_'+bk.replace(/[^a-z0-9]/gi,'_').slice(0,100));
     let snap=null;try{snap=await doc.get()}catch(e){return}
     const d=snap&&(typeof snap.data==='function'?snap.data():snap);
     if(LOCAL_NEW&&d&&d.json){
       const r=JSON.parse(d.json);
-      if(r&&r.acc){try{localStorage.setItem('codear-wiped2:'+k,'1')}catch(e){}
+      if(r&&r.acc){try{localStorage.setItem('pairwise-wiped2:'+k,'1')}catch(e){}
         Object.keys(S).forEach(x=>delete S[x]);Object.assign(S,r);prepState();LOCAL_NEW=false;
         try{localStorage.setItem(k,JSON.stringify(S))}catch(e){}
         cloud=doc;cloudKey=k;refresh();toast('Your data was restored from backup');return}
@@ -112,7 +180,7 @@ async function cloudSync(){
 }
 const total=()=>Object.keys(S.acc).reduce((t,k)=>t+S.acc[k]*S.rate[k]*GY,0);
 const spentTotal=()=>sum(Object.values(S.budget).map(b=>b.spent));
-const tgIncome=()=>S.income!=null?+S.income:440000;
+const tgIncome=()=>S.income!=null?+S.income:0;
 const dayKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const dayTx=()=>(S.tx||[]).filter(t=>dayKey(txTs(t))===(ui.day||dayKey(Date.now())));
 const dayLabel=()=>{const k=ui.day||dayKey(Date.now());return dayKey(Date.now())===k?'Today':new Date(k+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})};
@@ -124,7 +192,27 @@ const PER={
   year:{income:()=>sum(INC),exp:()=>sum(EXP),label:'This Year',inc:'',earn:0}
 };
 const ui={route:'dashboard',tab:'overview',period:'month',cur:'GYD',chk:'All',list:'apt',idea:'',shop:false,fin:false,share:false,newList:false,ren:false,delc:false,lanim:false,rail:'MMG',dir:'out',cleoWhy:false,cc:false,drill:null,goalsOpen:false,range:6,flip:null,contact:0,earnRange:'This Year'};
-if(S.theme)document.documentElement.setAttribute('data-theme',S.theme);
+/* ---------- brand: Pairwise "Balance" mark ---------- */
+function MARK(cls){return `<svg class="mark${cls?' '+cls:''}" viewBox="0 0 158 99" aria-hidden="true"><rect class="mk-a" width="133" height="45" rx="22.5"/><rect class="mk-b" x="25" y="54" width="133" height="45" rx="22.5"/></svg>`}
+// The in-page mark recolours through CSS tokens; the tab icon and browser bar follow the active theme here.
+const darkMQ=matchMedia('(prefers-color-scheme: dark)');
+function syncBrandIcon(){
+  const t=document.documentElement.getAttribute('data-theme')||(darkMQ.matches?'dark':'light');
+  document.querySelectorAll('link[rel="icon"]').forEach(l=>l.remove());
+  const l=document.createElement('link');l.rel='icon';l.type='image/svg+xml';l.href=`icon-${t}.svg`;document.head.appendChild(l);
+  const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='dark'?'#111111':'#E8590C';
+}
+new MutationObserver(syncBrandIcon).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+darkMQ.addEventListener('change',syncBrandIcon);
+/* Theme: a signed-in person's saved theme wins; otherwise (signed out, or no choice yet) use the last theme picked on this device. */
+const DEV_THEME='pairwise-theme';
+function applyTheme(signedIn){
+  let t=signedIn&&S.theme;
+  if(!t)try{t=localStorage.getItem(DEV_THEME)}catch(e){}
+  if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);
+}
+applyTheme(!!SESS_EMAIL());
+syncBrandIcon();
 
 /* ---------- charts ---------- */
 function smooth(pts){let d=`M${pts[0][0]},${pts[0][1]}`;for(let i=0;i<pts.length-1;i++){const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2;d+=`C${p1[0]+(p2[0]-p0[0])/6},${p1[1]+(p2[1]-p0[1])/6} ${p2[0]-(p3[0]-p1[0])/6},${p2[1]-(p3[1]-p1[1])/6} ${p2[0]},${p2[1]}`}return d}
@@ -141,12 +229,15 @@ function lineChart(series,labels){
   let g='';
   for(let i=0;i<=4;i++){const v=max/4*i,y=T+(h-T-B)*(1-i/4);g+=`<line class="grid-l" x1="${L}" x2="${w-R}" y1="${y}" y2="${y}"/><text class="axis" x="${L-8}" y="${y+3}" text-anchor="end">${ax(v)}</text>`}
   labels.forEach((t,i)=>{const x=L+i/(labels.length-1)*(w-L-R);g+=`<text class="axis" x="${x}" y="${h-6}" text-anchor="middle">${t}</text>`});
+  const n=labels.length,cw=(w-L-R)/(n-1||1);
+  labels.forEach((t,i)=>{const x=L+i*cw,top=Math.max(...series.map(s=>s.v[i]||0));
+    g+=`<g class="bar-g lc-g" data-tip="${t}: ${series.map(s=>(s.n?s.n+' ':'')+fmt0(s.v[i]||0)).join(' · ')}" data-tx="${x/w*100}" data-ty="${(T+(h-T-B)*(1-top/max))/h*100}"><line class="lc-hl" x1="${x}" x2="${x}" y1="${T}" y2="${h-B}"/><rect x="${x-cw/2}" y="0" width="${cw}" height="${h}" fill="transparent"/></g>`});
   series.forEach(s=>{
     const pts=s.v.map((v,i)=>[L+i/(s.v.length-1)*(w-L-R),T+(h-T-B)*(1-v/max)]);
     g+=`<path d="${smooth(pts)}" fill="none" stroke="${s.c}" stroke-width="2.6" stroke-linecap="round"/>`;
     const e=pts[pts.length-1];g+=`<circle cx="${e[0]}" cy="${e[1]}" r="4.5" fill="${s.c}" stroke="var(--card)" stroke-width="2"/>`;
   });
-  return `<svg class="rv" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Cash flow chart">${g}</svg>`;
+  return `<div class="chart-wrap" style="margin-top:0"><svg class="rv" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Cash flow chart">${g}</svg><div class="tip"></div></div>`;
 }
 const ax=v=>{return v>=1e6?(v/1e6).toFixed(1).replace(/\.0$/,'')+'M':v>=1e3?Math.round(v/1e3)+'k':Math.round(v)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -204,7 +295,7 @@ function dashboard(){
     <div class="goals"><div class="head" data-act="goals" role="button" tabindex="0" aria-expanded="${ui.goalsOpen}"><span class="ico">${ic('target')}</span><strong>My Savings Goals</strong><button class="add" data-act="addgoal"><i>+</i>Add Goal</button></div>
       ${ui.goalsOpen?`<div class="glist">${S.goals.map((g,i)=>`<div class="g-item" data-goal="${i}" role="button" tabindex="0" aria-label="Add money to ${esc(g.n)}"><div class="row"><b style="font-weight:500">${esc(g.n)}</b><span>${fmt0(g.s)} / ${fmt0(g.t)}</span></div><div class="g-bar"><i style="width:${Math.min(100,g.s/g.t*100)}%"></i></div></div>`).join('')}
       ${S.goals.length?'<div class="ghint">Tap a goal to add or take out money</div>':''}
-      <form class="gform" id="goalform"><input id="gname" placeholder="Goal name" required maxlength="40"><input id="gtarget" placeholder="Target G$" type="number" min="1" step="any" required><button class="add" type="submit"><i>+</i>Save</button></form></div>`:''}
+      <form class="gform" id="goalform"><input id="gname" placeholder="Goal name" required maxlength="40"><input id="gtarget" placeholder="Target G$" type="number" inputmode="decimal" min="1" step="any" required><button class="add" type="submit"><i>+</i>Save</button></form></div>`:''}
     </div></div>`;
 }
 function analytics(){
@@ -220,11 +311,11 @@ function analytics(){
     ${stat('Avg. Daily Spend','clock',PER[ui.period].exp()/30,'$','',true,EXP.map(v=>v/30),'var(--ink)',true)}
   </div>
   <div class="grid g-2">
-    <div class="card"><div class="row"><div><h3>Cash Flow</h3><div class="hint">Income versus expenses over time</div></div>
+    <div class="card"><div class="row wrapm"><div><h3>Cash Flow</h3><div class="hint">Income versus expenses over time</div></div>
       <div class="row"><div class="legend"><span><i style="background:var(--accent)"></i>Income</span><span><i style="background:var(--ink)"></i>Expenses</span></div>
       <div class="seg-c"><button data-range="6" aria-pressed="${n===6}">6M</button><button data-range="12" aria-pressed="${n===12}">12M</button></div></div></div>
       <div class="trio"><div><span>Revenue</span><b>${fmt0(rev)}</b></div><div><span>Expenses</span><b>${fmt0(ex)}</b></div><div><span>Growth</span><b class="${g>=0?'good':'bad'}">${g>=0?'+':''}${g.toFixed(1)}%</b></div></div>
-      ${lineChart([{v:inc,c:'#e8622a'},{v:exp,c:'var(--ink)'}],labels)}</div>
+      ${lineChart([{v:inc,c:'#e8622a',n:'In'},{v:exp,c:'var(--ink)',n:'Out'}],labels)}</div>
     ${earningCard()}
   </div>`;
 }
@@ -244,13 +335,13 @@ function goalHTML(i){
   return `<div class="row" style="justify-content:flex-start;gap:12px"><span class="ico cat-ic">${ic('target')}</span><div><h3 style="margin:0">${esc(g.n)}</h3><div class="hint" style="margin:2px 0 0">${fmt(g.s)} saved of ${fmt(g.t)} · ${Math.round(p)}%${left>0?` · ${fmt0(left)} to go`:' · reached'}</div></div></div>
   <div class="meter" style="height:8px;margin:14px 0 4px"><i style="width:${p}%"></i></div>
   ${goalCardHTML()}
-  ${goalCard()?`<form class="form" id="goalmoney" data-i="${i}"><div class="two"><label class="f">Amount (G$)<input class="in" id="gm-a" type="number" min="0.01" step="any" required></label><label class="f">Note (optional)<input class="in" id="gm-n" maxlength="40" placeholder="e.g. November saving"></label></div>
+  ${goalCard()?`<form class="form" id="goalmoney" data-i="${i}"><div class="two"><label class="f">Amount (G$)<input class="in" id="gm-a" type="number" inputmode="decimal" min="0.01" step="any" required></label><label class="f">Note (optional)<input class="in" id="gm-n" maxlength="40" placeholder="e.g. November saving"></label></div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="gm-f" checked style="width:auto;margin:0"> Move the money between my Salary account and ${esc(goalCard().name)}</label>
   <div class="hint" style="margin:0">Untick if the money is already on ${esc(goalCard().name)} and you only want to assign it to this goal.</div>
   <div class="hint" style="margin:0">${sc?`Money added from your Salary account counts as spending in <b>${esc(sc)}</b> on the Budget tab.`:'Tip: add a Savings category (tick Fixed) under Budget, Edit categories, to plan how much you save each month.'}</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Take out</button></div></form>`:''}
   ${h?`<div style="margin-top:14px">${h}</div>`:''}
-  <div class="two" style="margin-top:16px"><label class="f">Goal name<input class="in" data-gedit="n" maxlength="40" value="${esc(g.n)}"></label><label class="f">Target (G$)<input class="in" type="number" min="1" step="any" data-gedit="t" value="${Math.round(g.t)}"></label></div>
+  <div class="two" style="margin-top:16px"><label class="f">Goal name<input class="in" data-gedit="n" maxlength="40" value="${esc(g.n)}"></label><label class="f">Target (G$)<input class="in" type="number" inputmode="decimal" min="1" step="any" data-gedit="t" value="${Math.round(g.t)}"></label></div>
   ${del}
   <div class="btns"><button type="button" class="btn dark" data-act="mclose2">Done</button>${ui.gdel===g.id?'':`<button type="button" class="btn" data-gdel="${g.id}">Delete goal</button>`}</div>`;
 }
@@ -297,7 +388,7 @@ function pastCycles(){
 }
 function cardMoney(c){
   const h=(c.hist||[]).slice(0,5).map(x=>`<div class="srow"><div class="grow"><b>${x.amt>0?'Added':'Withdrawn'}${x.note?' · '+esc(x.note):''}</b><small>${new Date(x.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}${x.from?' · from salary account':''}</small></div><span class="${x.amt>0?'good':''}">${x.amt>0?'+':'-'}${fmt(Math.abs(x.amt),'G$')}</span></div>`).join('');
-  return `<h4 style="margin:20px 0 6px">Add or withdraw money</h4><form class="form" id="cmoney" data-id="${c.id}"><div class="two"><label class="f">Amount (G$)<input class="in" id="cm-a" type="number" min="1" step="any" required></label><label class="f">Note (optional)<input class="in" id="cm-n" maxlength="40" placeholder="e.g. Monthly saving"></label></div>
+  return `<h4 style="margin:20px 0 6px">Add or withdraw money</h4><form class="form" id="cmoney" data-id="${c.id}"><div class="two"><label class="f">Amount (G$)<input class="in" id="cm-a" type="number" inputmode="decimal" min="1" step="any" required></label><label class="f">Note (optional)<input class="in" id="cm-n" maxlength="40" placeholder="e.g. Monthly saving"></label></div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="cm-f" style="width:auto;margin:0"> Take it from my Salary account too</label>
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Withdraw</button></div></form>${h?`<div style="margin-top:14px">${h}</div>`:''}`;
 }
@@ -306,7 +397,7 @@ function acctCard(){
   return `<div class="card"><h3><span class="ico">${ic('wallet')}</span>${esc(c.name)}</h3><div class="hint">${m?'Your main account. It changes with your expenses, income and transfers.':c.joint?'Your joint savings. Its balance is the total of your Joint plans, which you and your partner share.':goalCard()&&goalCard().id===c.id?'Your savings account. Money you put into savings goals is kept here. Only you can see it, and it is not counted in your budget or Total Balance.':'Kept here for reference. Only you can see it. It is not used in budgets, totals or Cleo.'}</div>
   <div class="big" style="margin:14px 0 4px" data-count="${cardBal(c)}" data-f="G$">0</div>
   ${goalCard()&&goalCard().id===c.id&&(S.goals||[]).length?`<div class="hint">Holds your savings goals: ${fmt(Math.min(goalsHeld(),cardBal(c)))} in goals${cardBal(c)>goalsHeld()?`, ${fmt(cardBal(c)-goalsHeld())} not assigned`:''}.${goalsHeld()>cardBal(c)+0.005?` <b class="bad">Goals add up to ${fmt(goalsHeld())}, more than this card shows.</b>`:''}</div>`:''}
-  <form class="form" id="cardform" data-id="${c.id}" style="margin-top:12px"><div class="two"><label class="f">Account name<input class="in" id="cd-n" maxlength="30" required value="${esc(c.name)}"></label><label class="f">Balance (G$)<input class="in" id="cd-b" type="number" min="0" step="any" ${m||c.joint?'disabled':''} value="${cardBal(c)}"></label></div>
+  <form class="form" id="cardform" data-id="${c.id}" style="margin-top:12px"><div class="two"><label class="f">Account name<input class="in" id="cd-n" maxlength="30" required value="${esc(c.name)}"></label><label class="f">Balance (G$)<input class="in" id="cd-b" type="number" inputmode="decimal" min="0" step="any" ${m||c.joint?'disabled':''} value="${cardBal(c)}"></label></div>
   ${m?'<div class="hint">To change this balance, use + Add, then Update balance.</div>':c.joint?'<div class="hint">To change this balance, add or take out money in Joint plans.</div>':''}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn dark" type="submit">Save</button>${m?'':`<button type="button" class="btn" data-act="delcard">${ui.dcard===c.id?'Tap again to delete':'Delete account'}</button>`}</div></form>${m?'':c.joint?`<button class="btn dark" style="margin-top:14px" data-go="joint">${ic('users')}Open Joint plans</button>`:cardMoney(c)}</div>`;
 }
@@ -318,8 +409,8 @@ function wallet(){
   <div class="grid g-2" style="margin-bottom:16px">
     ${acctCard()}
     <div class="card"><div class="row"><div><h3>My Cards</h3><div class="hint">Tap a card to see its balance, tap it again to flip it</div></div><div class="row" style="gap:8px"><button class="arw" data-scroll="-1" aria-label="Previous card"><svg class="ic" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button><button class="arw" data-scroll="1" aria-label="Next card"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button></div></div>
-      <div class="cards">${allCards().map((c,ci)=>`<div class="cc ${c.cls} ${selCard()&&selCard().id===c.id?'sel':''} ${ui.newId===c.id?'new':''}" style="--i:${ci}" data-pick="${c.id}" role="button" tabindex="0" aria-pressed="${selCard()&&selCard().id===c.id}" aria-label="${esc(c.name)} account"><div>
-        <div class="face"><div class="top"><span><i class="logo" style="width:20px;height:20px;font-size:11px;box-shadow:none">C</i>${esc(c.name)}</span>${c.main?'<em>Main</em>':c.joint?'<em>Joint</em>':''}</div><div class="chip-ic"></div><div class="num" style="letter-spacing:0;font-size:17px;font-weight:600">${fmt(cardBal(c),'G$')}</div><div class="meta"><div>Account<b>${c.main?'Linked to budget':c.joint?'Shared with partner':'Reference only'}</b></div><span class="mc"><i></i><i></i></span></div></div>
+      <div class="cards">${allCards().map((c,ci)=>`<div class="cc ${c.cls} ${selCard()&&selCard().id===c.id?'picked':''} ${ui.newId===c.id?'new':''}" style="--i:${ci}" data-pick="${c.id}" role="button" tabindex="0" aria-pressed="${selCard()&&selCard().id===c.id}" aria-label="${esc(c.name)} account"><div>
+        <div class="face"><div class="top"><span>${MARK('mono')}${esc(c.name)}</span>${c.main?'<em>Main</em>':c.joint?'<em>Joint</em>':''}</div><div class="chip-ic"></div><div class="num" style="letter-spacing:0;font-size:17px;font-weight:600">${fmt(cardBal(c),'G$')}</div><div class="meta"><div>Account<b>${c.main?'Linked to budget':c.joint?'Shared with partner':'Reference only'}</b></div><span class="mc"><i></i><i></i></span></div></div>
         <div class="face back"><div class="mag"></div><div class="sig">***</div><small>Card number ending ${c.last}. Never share your CVV.</small></div></div></div>`).join('')}</div></div>
   </div>
   <div class="grid g-2">
@@ -339,7 +430,7 @@ const SYMS={GYD:'G$',USD:'US$',EUR:'€',GBP:'£'};
 const railCol=r=>(RAILS.find(x=>x[0]===r)||RAILS[4])[1];
 function keepForm(fn){const ids=['xamt','xnote','xref','xfrom'],v=ids.map(i=>$('#'+i)?.value);fn();ids.forEach((i,k)=>{if($('#'+i)&&v[k]!=null)$('#'+i).value=v[k]})}
 function transfer(){
-  const c=S.contacts[ui.contact],inn=ui.dir==='in',T=S.transfers;
+  const c=S.contacts[ui.contact]||S.contacts[0],inn=ui.dir==='in',T=S.transfers;
   const by=RAILS.map(([r,col])=>({r,col,v:sum(T.filter(t=>(t.r||'Other')===r).map(t=>t.a))})).filter(x=>x.v>0),mx=Math.max(1,...by.map(x=>x.v));
   const sent=sum(T.filter(t=>t.dir!=='in').map(t=>t.a)),got=sum(T.filter(t=>t.dir==='in').map(t=>t.a));
   return `<div class="page-head"><div><h1>Transfer</h1><div class="sub">Log money you send or receive through MMG, PayPal, your bank or cash</div></div></div>
@@ -348,13 +439,14 @@ function transfer(){
     <div class="row" style="flex-wrap:wrap"><h3>${inn?'Record money received':'Record money sent'}</h3>
       <div class="seg-c" role="group" aria-label="Direction"><button data-dir="out" aria-pressed="${!inn}">Sent</button><button data-dir="in" aria-pressed="${inn}">Received</button></div></div>
     <div class="hint" style="margin-top:12px">${inn?'Who sent it?':'Who did you send it to?'}</div>
-    <div class="contacts">${S.contacts.map((p,i)=>`<button class="contact" data-contact="${i}" aria-pressed="${i===ui.contact}"><i style="background:${p.c}">${p.n.split(' ').map(x=>x[0]).join('')}</i>${p.n.split(' ')[0]}</button>`).join('')}</div>
+    <div class="contacts">${S.contacts.map((p,i)=>`<button class="contact" data-contact="${i}" aria-pressed="${i===ui.contact}"><i style="background:${p.c}">${p.n.split(' ').map(x=>x[0]).join('')}</i>${p.n.split(' ')[0]}</button>`).join('')}<button class="contact" data-act="addcontact" aria-expanded="${!!ui.addc}"><i class="addc">${ic('plus')}</i>Add</button></div>
+    ${ui.addc||!S.contacts.length?`<form class="form addcf" id="addcform"><label class="f">${S.contacts.length?'New person':'Add the first person you send money to or get money from'}<input class="in" id="addc-n" maxlength="30" required placeholder="e.g. Maria Singh" autocomplete="off"></label><div style="display:flex;gap:8px"><button class="btn dark sm" type="submit">${ic('plus')}Add person</button>${S.contacts.length?'<button class="btn sm" type="button" data-act="addcontact">Cancel</button>':''}</div></form>`:''}
     <form class="form" id="xferform" style="margin-top:6px">
       <div class="f" style="display:grid;gap:8px;font-size:12px;color:var(--muted);font-weight:500"><span>Method used</span><div class="rails" role="group" aria-label="Method used">${RAILS.map(([r,col])=>`<button type="button" class="rail" data-rail="${r}" aria-pressed="${ui.rail===r}"><i style="background:${col}"></i>${r}</button>`).join('')}</div></div>
-      <div class="two"><label class="f">${inn?'Received into':'Paid from'}<select class="in" id="xfrom">${Object.keys(S.acc).map(k=>`<option>${k}</option>`).join('')}</select></label><label class="f">Amount<input class="in" id="xamt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label></div>
+      <div class="two"><label class="f">${inn?'Received into':'Paid from'}<select class="in" id="xfrom">${Object.keys(S.acc).map(k=>`<option>${k}</option>`).join('')}</select></label><label class="f">Amount<input class="in" id="xamt" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required></label></div>
       <label class="f">Reference or transaction ID (optional)<input class="in" id="xref" maxlength="40" placeholder="e.g. the ID shown in your ${esc(ui.rail)} receipt"></label>
       <label class="f">Note<input class="in" id="xnote" maxlength="60" placeholder="What is this for?"></label>
-      <button class="btn dark" type="submit" style="justify-content:center">${ic(inn?'down':'send')}${inn?'Record received from':'Record sent to'} ${esc(c.n)} via ${esc(ui.rail)}</button></form></div>
+      <button class="btn dark" type="submit" style="justify-content:center">${ic(inn?'down':'send')}${inn?'Record received from':'Record sent to'} ${c?esc(c.n):'…'} via ${esc(ui.rail)}</button></form></div>
   <div class="xcol"><div class="card"><div class="row"><h3>Recent transfers</h3><span class="hint" style="margin:0">Sent ${fmt(sent)} · Received ${fmt(got)}</span></div>
     <div style="margin-top:6px">${T.map(t=>{const r=t.r||'Other',i=t.dir==='in';return `<div class="tx"><div class="av">${t.n.split(' ').map(x=>x[0]).join('')}</div><div><b>${esc(t.n)}<span class="rb"><i style="background:${railCol(r)}"></i>${r}</span></b><small>${txDate(t)}${t.ref?` · <span class="ref">${esc(t.ref)}</span>`:''}${t.note?` · ${esc(t.note)}`:''}</small></div><div class="a ${i?'inc':''}">${i?'+':'-'}${fmt(t.a)}</div></div>`}).join('')||'<div class="hint">No transfers yet.</div>'}</div></div>
   <div class="card"><h3>Volume by method</h3><div class="hint">Total moved through each method</div><div style="margin-top:8px">${by.map(x=>`<div class="mb"><span>${x.r}</span><div class="meter"><i data-w="${(x.v/mx*100).toFixed(1)}" style="background:${x.col};width:0;transition:width 1s cubic-bezier(.2,.8,.2,1) .2s"></i></div><b style="font-weight:600">${fmt(x.v)}</b></div>`).join('')||'<div class="hint">Record a transfer to see your totals.</div>'}</div></div></div></div>`;
@@ -387,7 +479,7 @@ function catsHTML(){
   const ks=Object.keys(S.budget);
   const row=(k,i)=>{const b=S.budget[k],del=ui.catDel===k,others=ks.filter(x=>x!==k),bc=(S.bills||[]).filter(x=>x.cat===k).length;
     return `<div class="catrow"><input class="in" data-cname="${esc(k)}" value="${esc(k)}" maxlength="24" aria-label="Name of ${esc(k)}">
-    <input class="in" type="number" min="0" step="any" data-climit="${esc(k)}" value="${Math.round(b.limit)}" aria-label="Monthly limit for ${esc(k)}">
+    <input class="in" type="number" inputmode="decimal" min="0" step="any" data-climit="${esc(k)}" value="${Math.round(b.limit)}" aria-label="Monthly limit for ${esc(k)}">
     <label class="cfix"><input type="checkbox" data-cfixed="${esc(k)}" ${b.fixed?'checked':''}>Fixed</label>
     <button type="button" class="xdel" data-cdel="${esc(k)}" aria-label="Remove ${esc(k)}" ${ks.length<2?'disabled':''}>×</button></div>
     ${del?`<div class="note" style="margin:4px 0 10px"><div>${esc(k)} has ${fmt(b.spent)} spent this cycle${bc?` and ${bc} bill${bc>1?'s':''}`:''}${(S.tx||[]).some(t=>t.c===k)?', plus its past expenses':''}. Move them to
@@ -396,7 +488,7 @@ function catsHTML(){
   return `<h3>Your categories</h3><div class="hint">Changes save as you go. Tick <b>Fixed</b> for set amounts like rent, bills or savings: they are kept out of Safe to spend.</div>
   <div class="cathead"><span>Name</span><span>Monthly limit (G$)</span><span></span><span></span></div>
   <div style="max-height:52vh;overflow:auto">${ks.map(row).join('')}</div>
-  <form id="catadd" class="catrow" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px"><input class="in" id="ca-n" maxlength="24" placeholder="New category, e.g. Phone" aria-label="New category name"><input class="in" id="ca-l" type="number" min="0" step="any" placeholder="Limit" aria-label="Monthly limit"><label class="cfix"><input type="checkbox" id="ca-f">Fixed</label><button class="btn sm dark" type="submit">Add</button></form>
+  <form id="catadd" class="catrow" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px"><input class="in" id="ca-n" maxlength="24" placeholder="New category, e.g. Phone" aria-label="New category name"><input class="in" id="ca-l" type="number" inputmode="decimal" min="0" step="any" placeholder="Limit" aria-label="Monthly limit"><label class="cfix"><input type="checkbox" id="ca-f">Fixed</label><button class="btn sm dark" type="submit">Add</button></form>
   <div class="btns"><button type="button" class="btn dark" data-act="mclose2">Done</button></div>`;
 }
 const openCats=()=>{modal(catsHTML());const m=$('#modalroot .modal');if(m)m.style.width='min(560px,100%)'};
@@ -475,7 +567,7 @@ function budgetCard(k,b,ro){
     <div class="pbar"><div class="meter"><i data-w="${Math.min(100,p*100).toFixed(1)}" style="background:${col}"></i></div>${st.fixed?'':`<span class="tick" style="left:${(c.pace*100).toFixed(1)}%" title="Where you should be today"></span>`}</div>
     <div class="row" style="flex-wrap:wrap;gap:6px;justify-content:flex-start"><span class="pchip ${cc}">${chip}</span>${left>0&&!st.fixed?`<span class="hint" style="margin:0">${fmt(left/c.left)} a day left</span>`:''}</div>
     <div class="hint fc">${fc}</div>
-    <div class="row" style="gap:10px;flex-wrap:wrap">${ro?'<span></span>':`<label class="limit">Monthly limit<input type="number" min="1" step="1000" value="${Math.round(b.limit)}" data-limit="${k}" aria-label="${k} limit"></label>`}<button class="link" data-drill="${k}">View expenses</button></div></div>`;
+    <div class="row" style="gap:10px;flex-wrap:wrap">${ro?'<span></span>':`<label class="limit">Monthly limit<input type="number" inputmode="decimal" min="1" step="1000" value="${Math.round(b.limit)}" data-limit="${k}" aria-label="${k} limit"></label>`}<button class="link" data-drill="${k}">View expenses</button></div></div>`;
 }
 function aptCard(){
   const L=S.check,live=L.filter(x=>x.s!=='Not Needed'),spent=sum(L.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),plan=sum(live.map(x=>+x.c||0));
@@ -494,7 +586,7 @@ function drillHTML(k){
   return `<div class="row" style="justify-content:flex-start;gap:12px"><span class="ico cat-ic">${ic(catIcon(k))}</span><div><h3 style="margin:0">${k}</h3><div class="hint" style="margin:2px 0 0">${fmt(b.spent)} of ${fmt(b.limit)} · ${pc(st.p)} used</div></div></div>
   <div class="kv"><span>Left this cycle</span><b>${fmt(Math.max(0,b.limit-b.spent))}</b><span>${st.fixed?'Type':'Forecast at cycle end'}</span><b>${st.fixed?'Fixed bill':fmt(st.proj)}</b><span>Cycle day</span><b>${st.c.el} of ${st.c.len}</b></div>
   <div class="hint" style="margin-top:14px;font-weight:500">Expenses you added</div>
-  <div class="drl">${rows.map(x=>{const i=S.tx.indexOf(x);return `<div class="dr"><div><b>${esc(x.n)}</b><small>${txDate(x)}</small></div><input class="cell num" type="number" min="0" step="100" value="${Math.round(-x.a*100)/100}" data-txa="${i}" aria-label="Amount for ${esc(x.n)}"><button class="xdel" data-txdel="${i}" aria-label="Delete ${esc(x.n)}">×</button></div>`}).join('')||'<div class="hint" style="padding:10px 0">No individual expenses yet. Add one from the form on the Budget tab.</div>'}</div>
+  <div class="drl">${rows.map(x=>{const i=S.tx.indexOf(x);return `<div class="dr"><div><b>${esc(x.n)}</b><small>${txDate(x)}</small></div><input class="cell num" type="number" inputmode="decimal" min="0" step="100" value="${Math.round(-x.a*100)/100}" data-txa="${i}" aria-label="Amount for ${esc(x.n)}"><button class="xdel" data-txdel="${i}" aria-label="Delete ${esc(x.n)}">×</button></div>`}).join('')||'<div class="hint" style="padding:10px 0">No individual expenses yet. Add one from the form on the Budget tab.</div>'}</div>
   ${earlier>0.005?`<div class="hint" style="margin-top:10px">Plus ${fmt(earlier)} spent earlier in this cycle, before individual expenses were tracked.</div>`:''}
   <div class="btns"><button class="btn dark" data-act="mclose2">Close</button></div>`;
 }
@@ -523,7 +615,7 @@ function budget(){
   <div class="grid g-2" style="margin-bottom:16px"><div class="card row" style="gap:24px;flex-wrap:wrap;justify-content:flex-start">
     <svg class="ring" viewBox="0 0 150 150" role="img" aria-label="${Math.round(pct*100)}% of budget used"><circle cx="75" cy="75" r="58" fill="none" stroke="var(--line)" stroke-width="14"/><circle cx="75" cy="75" r="58" fill="none" stroke="${ts>tl?'var(--bad)':'var(--accent)'}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${C*pct} ${C}" transform="rotate(-90 75 75)"/><text x="75" y="73" text-anchor="middle" font-size="24" font-weight="600" fill="var(--ink)">${Math.round(pct*100)}%</text><text x="75" y="92" text-anchor="middle" font-size="10.5" fill="var(--muted)">used</text></svg>
     <div><h3>Monthly budget</h3><div class="mid" style="margin-bottom:2px">${fmt(tl-ts)}</div><div class="hint">left of ${fmt0(tl)}</div><div class="hint" style="margin-top:10px">Spent ${fmt(ts)} so far</div>${assignHTML(tl)}</div></div>
-  <div class="card"><h3>Add expense</h3><form class="form" id="expform" style="margin-top:12px"><div class="two"><label class="f">Category<select class="in" id="ecat">${Object.keys(S.budget).map(k=>`<option>${esc(k)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="eamt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label></div>
+  <div class="card"><h3>Add expense</h3><form class="form" id="expform" style="margin-top:12px"><div class="two"><label class="f">Category<select class="in" id="ecat">${Object.keys(S.budget).map(k=>`<option>${esc(k)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="eamt" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required></label></div>
   <label class="f">Description<input class="in" id="edesc" maxlength="50" placeholder="e.g. Lunch with team" required></label><button class="btn orange" type="submit" style="justify-content:center">${ic('plus')}Add expense</button></form></div></div>
   ${aptCard()}
   <div class="row" style="margin:6px 2px 12px;flex-wrap:wrap"><h3 style="font-size:16px;letter-spacing:-.02em;margin:0">Categories</h3><div class="row" style="gap:12px;flex-wrap:wrap"><span class="legend-t"><i></i>marks where you should be today</span><button class="btn sm" data-act="cats">Edit categories</button></div></div>
@@ -534,7 +626,7 @@ const CHK=[["Living Room", "Sofa / Couch", "Purchased", "Medium", 120000.0], ["L
 const STAT=['Need to Buy','Already Have','Purchased','Not Needed'],PRI=['High','Medium','Low'];
 const AREAIC={'Living Room':'sofa','Dining Room':'food','Bedroom':'bed','Gaming / Entertainment Room':'gamepad','Kitchen':'chef','Bathroom & Toilet':'bath'};
 const stCls=s=>({'Need to Buy':'near','Already Have':'ok','Purchased':'ok','Not Needed':'mute'}[s]);
-function seedCheck(){return CHK.map((r,i)=>({id:i+1,a:r[0],i:r[1],s:r[2],p:r[3],c:r[4],n:''}))}
+function seedCheck(){return []}
 const GIC={...AREAIC,'Produce':'leaf','Dairy & Eggs':'drop','Meat & Fish':'fish','Pantry':'box','Drinks':'cup','Household':'home','General':'list'};
 const TPL={
   groceries:{name:'Groceries',groups:['Produce','Dairy & Eggs','Meat & Fish','Pantry','Drinks','Household'],pri:false,qty:true},
@@ -648,7 +740,7 @@ function gExtras(cl){
   const bar=bud?`<div class="meter"><i class="${pct>1?'over':pct>.85?'near':''}" data-w="${Math.min(100,pct*100).toFixed(1)}"></i></div><div class="hint" style="margin:0">${fmt(est,'G$')} planned of ${fmt(bud,'G$')}</div>`:`<div class="hint" style="margin:8px 0 0">Set a budget to see how this list compares.</div>`;
   const cleo=`<div class="card gcleo ${m}"><div class="cleo ${m}"><div class="cleo-art sm">${cleoSvg(m)}</div><div class="cleo-body"><span class="mood">${lab}</span><h3 class="cl-h">${head}</h3><p class="cl-t">${tip}</p></div></div>
    ${sg.length?`<div class="chips">${sg.map(s=>chip(s.n)).join('')}</div>`:''}
-   <div class="gbud"><div class="row"><label>Grocery budget (G$)<input class="cell num" type="number" min="0" step="1000" value="${bud==null?'':bud}" placeholder="Not set" data-gbud aria-label="Grocery budget"></label></div>${bar}
+   <div class="gbud"><div class="row"><label>Grocery budget (G$)<input class="cell num" type="number" inputmode="decimal" min="0" step="1000" value="${bud==null?'':bud}" placeholder="Not set" data-gbud aria-label="Grocery budget"></label></div>${bar}
    ${food?`<div class="hint" style="margin-top:10px">Budget tab, ${esc(foodCat())}: ${fmt(food.spent)} used of ${fmt(food.limit)}</div>`:''}
    ${trip?`<div class="hint">Last trip (${esc(trip.d)}): paid ${fmt(trip.paid,'G$')}${trip.est?`, ${trip.paid>trip.est?'over':'under'} the estimate by ${fmt(Math.abs(trip.paid-trip.est),'G$')}`:''}</div>`:''}</div></div>`;
   const share=ui.share?`<div class="card popin" style="margin-bottom:16px"><div class="row"><h3>Share this list</h3><button class="btn sm" data-act="share">Close</button></div><textarea class="sharebox" id="sharetxt" readonly>${esc(shareText(cl))}</textarea><div class="btns" style="margin-top:12px"><button class="btn sm dark" data-act="copyshare">Copy text</button><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(shareText(cl))}">Open in WhatsApp</a></div></div>`:'';
@@ -659,7 +751,7 @@ function finishCard(cl){
   if(!got.length)return '';
   const e=sum(got.map(x=>+x.c||0));
   return `<div class="card fincard"><div class="row" style="flex-wrap:wrap"><div><h3>Finished shopping?</h3><div class="hint">${got.length} item${got.length===1?'':'s'} in the cart. Log what you paid and I add it to your ${esc(foodCat()||'Food')} budget.</div></div>${ui.fin?'':`<button class="btn dark" data-act="finish">${ic('receipt')}Finish and log</button>`}</div>
-  ${ui.fin?`<form class="addrow" id="finform"><input class="in" id="paid" type="number" min="0" step="1" value="${e||''}" placeholder="Total on your receipt (G$)" required aria-label="Total paid in G$"><button class="btn sm dark" type="submit">${ic('check')}Log it</button><button class="btn sm" type="button" data-act="finish">Cancel</button></form>`:''}</div>`;
+  ${ui.fin?`<form class="addrow" id="finform"><input class="in" id="paid" type="number" inputmode="decimal" min="0" step="1" value="${e||''}" placeholder="Total on your receipt (G$)" required aria-label="Total paid in G$"><button class="btn sm dark" type="submit">${ic('check')}Log it</button><button class="btn sm" type="button" data-act="finish">Cancel</button></form>`:''}</div>`;
 }
 function shopView(cl){
   const L=cl.items,need=L.filter(x=>x.s==='Need to Buy'),got=L.filter(x=>x.s==='Purchased'),tot=need.length+got.length,pc=tot?got.length/tot*100:0;
@@ -697,17 +789,17 @@ function checklist(){
     const done=rows.filter(x=>x.s==='Purchased'||x.s==='Already Have').length,sub=sum(rows.map(x=>+x.c||0));
     const body=vis.map(x=>{const ok=x.s==='Purchased'||x.s==='Already Have';
       return `<tr class="${x.s==='Not Needed'?'dim':''}"><td style="width:34px"><button class="cb" data-tick="${x.id}" aria-pressed="${ok}" aria-label="Toggle ${esc(x.i)}">${ic('check')}</button></td><td class="it">${esc(x.i)}</td>
-      ${cl.qty?`<td><input class="cell qty" value="${esc(x.q||'')}" placeholder="1" maxlength="10" data-ck="${x.id}:q" aria-label="Quantity"></td>`:''}
-      <td><select class="cell ${stCls(x.s)}" data-ck="${x.id}:s" aria-label="Status">${STAT.map(o=>`<option ${o===x.s?'selected':''}>${o}</option>`).join('')}</select></td>
-      ${cl.pri?`<td><select class="cell" data-ck="${x.id}:p" aria-label="Priority">${PRI.map(o=>`<option ${o===x.p?'selected':''}>${o}</option>`).join('')}</select></td>`:''}
-      <td><input class="cell num" type="number" min="0" step="100" value="${x.c==null?'':x.c}" placeholder="—" data-ck="${x.id}:c" aria-label="Estimated cost"></td>
-      <td><input class="cell" value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Notes"></td>
-      <td style="width:34px"><button class="xdel" data-del="${x.id}" aria-label="Remove ${esc(x.i)}">×</button></td></tr>`}).join('');
-    const table=vis.length?`<div class="tw"><table class="tbl"><thead><tr><th></th><th>Item</th>${cl.qty?'<th>Qty</th>':''}<th>Status</th>${cl.pri?'<th>Priority</th>':''}<th style="text-align:right">Estimated Cost (G$)</th><th>Notes</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`;
+      ${cl.qty?`<td data-l="Qty"><input class="cell qty" value="${esc(x.q||'')}" placeholder="1" maxlength="10" data-ck="${x.id}:q" aria-label="Quantity"></td>`:''}
+      <td data-l="Status"><select class="cell ${stCls(x.s)}" data-ck="${x.id}:s" aria-label="Status">${STAT.map(o=>`<option ${o===x.s?'selected':''}>${o}</option>`).join('')}</select></td>
+      ${cl.pri?`<td data-l="Priority"><select class="cell" data-ck="${x.id}:p" aria-label="Priority">${PRI.map(o=>`<option ${o===x.p?'selected':''}>${o}</option>`).join('')}</select></td>`:''}
+      <td data-l="Cost (G$)"><input class="cell num" type="number" inputmode="decimal" min="0" step="100" value="${x.c==null?'':x.c}" placeholder="—" data-ck="${x.id}:c" aria-label="Estimated cost"></td>
+      <td data-l="Notes"><input class="cell" value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Notes"></td>
+      <td class="tdel" style="width:34px"><button class="xdel" data-del="${x.id}" aria-label="Remove ${esc(x.i)}">×</button></td></tr>`}).join('');
+    const table=vis.length?`<div class="tw"><table class="tbl stk"><thead><tr><th></th><th>Item</th>${cl.qty?'<th>Qty</th>':''}<th>Status</th>${cl.pri?'<th>Priority</th>':''}<th style="text-align:right">Estimated Cost (G$)</th><th>Notes</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`;
     return `<div class="card chk" data-sec="${esc(a)}"><div class="row" style="flex-wrap:wrap"><div style="display:flex;align-items:center;gap:12px">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<span class="ico cat-ic">${ic(GIC[a]||'list')}</span><div><h3>${esc(a)}</h3><div class="hint">${rows.length?`${done} of ${rows.length} ready · ${fmt(sub,'G$')} estimated`:'Empty section'}</div></div></div>
-      <div class="row" style="gap:10px">${g?`<span class="secmv"><button data-secmv="${esc(a)}:-1" aria-label="Move ${esc(a)} up">▲</button><button data-secmv="${esc(a)}:1" aria-label="Move ${esc(a)} down">▼</button></span>`:''}<div class="meter"><i data-w="${rows.length?(done/rows.length*100).toFixed(1):0}"></i></div>${rows.length?'':`<button class="secdel" data-secdel="${esc(a)}" aria-label="Remove section ${esc(a)}">×</button>`}</div></div>
+      <div class="row" style="gap:10px">${g?`<span class="secmv"><button data-secmv="${esc(a)}:-1" aria-label="Move ${esc(a)} up">▲</button><button data-secmv="${esc(a)}:1" aria-label="Move ${esc(a)} down">▼</button></span>`:''}${rows.length?`<div class="meter"><i data-w="${(done/rows.length*100).toFixed(1)}"></i></div>`:''}${rows.length?'':`<button class="secdel" data-secdel="${esc(a)}" aria-label="Remove section ${esc(a)}">×</button>`}</div></div>
       ${table}
-      <form class="addrow" data-area="${esc(a)}"><input class="in" name="item" placeholder="Add an item to ${esc(a)}" maxlength="50" aria-label="New item"><button class="btn sm dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
+      <form class="addrow" data-area="${esc(a)}"><input class="in" name="item" placeholder="Add an item" maxlength="50" aria-label="New item for ${esc(a)}"><button class="btn sm dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
   const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length}))];
   const sw=`<div class="lsw" role="tablist" aria-label="Lists">${lists.map(l=>`<button class="ltab" role="tab" aria-selected="${l.id===cl.id}" data-list="${l.id}"><span>${esc(l.name)}</span><em>${l.n}</em></button>`).join('')}<button class="ltab add" data-act="newlist">${ic('plus')}New list</button></div>`;
   const newForm=ui.newList?`<form class="card" id="newlistform" style="margin-bottom:16px"><h3>Create a list</h3><div class="two form"><label class="f">Name<input class="in" id="nlname" maxlength="30" placeholder="e.g. Pharmacy run" required></label><label class="f">Start from<select class="in" id="nltpl"><option value="groceries">Groceries (6 sections, quantity)</option><option value="market">Market day (Guyanese staples)</option><option value="blank">Blank list (one section, priority)</option></select></label></div><div class="btns"><button class="btn dark" type="submit">${ic('plus')}Create list</button><button class="btn" type="button" data-act="newlist">Cancel</button></div></form>`:'';
@@ -718,36 +810,35 @@ function checklist(){
   const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}"><div class="page-head"><div>${title}<div class="sub">${sub}</div></div><div class="row" style="gap:8px;flex-wrap:wrap">${gctl}${ctrl}</div></div>${g?gExtras(cl):''}${apt?planCard():''}
   <div class="grid g-5" style="margin-bottom:16px">${stat('Total Items',L.length,'n','receipt')}${stat('Already Have',cnt('Already Have'),'n','home')}${stat('Need to Buy',cnt('Need to Buy'),'n','bag')}${stat('Purchased',cnt('Purchased'),'n','check')}${stat('Estimated Budget (GYD)',budget,'G$','coin')}</div>
   <div class="tabs" role="tablist">${tabs}</div>${cards}${g?finishCard(cl):''}
-  <form class="addrow" id="secform" style="margin-top:16px"><input class="in" name="sec" placeholder="Add a new section, e.g. ${apt?'Balcony':'Frozen'}" maxlength="30" aria-label="New section"><button class="btn sm" type="submit">${ic('plus')}Add section</button></form></div>`;
+  <form class="addrow secadd" id="secform"><input class="in" name="sec" placeholder="${apt?'e.g. Balcony':'e.g. Frozen'}" maxlength="30" aria-label="New section"><button class="btn sm" type="submit">${ic('plus')}Add section</button></form></div>`;
   ui.lanim=false;return out;
 }
 /* ---------- core helpers, profile and buying plan ---------- */
-const PKEY='codear-profiles';
-const DEMOS={m:{name:'Marcus Hill',email:'marcus@demo.codear.app',gender:'Male',phone:'+592 600 0101',city:'Georgetown',color:'#3c52d9'},f:{name:'Nadia Hill',email:'nadia@demo.codear.app',gender:'Female',phone:'+592 600 0102',city:'Georgetown',color:'#8a5cf5'}};
+const PKEY='pairwise-profiles';
 function prof(){if(!user)return null;const all=ldj(PKEY,{});return all[(user.email||'').toLowerCase()]||{name:user.name,email:user.email,gender:'',phone:'',city:'',color:'#e8622a'}}
 function paintAvatar(){const b=$('.avatar'),p=prof();if(!b||!p)return;b.classList.add('ini');b.style.setProperty('--c',p.color||'#e8622a');b.textContent=(p.name||'?').split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase()}
 
 const myName=()=>(prof()&&prof().name)||(user&&user.name)||'You';
-const JKEY='codear-joint';
+const JKEY='pairwise-joint';
 const jload=()=>{try{const v=JSON.parse(localStorage.getItem(JKEY)||'null');return v&&Array.isArray(v.cards)?v:{cards:[]}}catch(e){return {cards:[]}}};
 const jsave=j=>{try{localStorage.setItem(JKEY,JSON.stringify(j))}catch(e){}};
 const allCards=()=>[...(S.cards||[]),...jload().cards.map(c=>({...c,joint:true}))];
 function cardEdit(id,fn){const c=(S.cards||[]).find(x=>x.id==id);if(c){fn(c);save();return true}const j=jload(),jc=j.cards.find(x=>x.id==id);if(jc){fn(jc);jsave(j);return true}return false}
 function ensureTg(){
-  if(!S.cycle)S.cycle={id:1,start:'2026-10-08'};
+  if(!S.cycle)S.cycle={id:1,start:iso(new Date())};
   if(!S.tx)S.tx=[];
-  if(S.income==null)S.income=(S.tg&&S.tg.inc)?((+S.tg.inc.p1||0)+(+S.tg.inc.p2||0)):440000;
+  if(S.income==null)S.income=(S.tg&&S.tg.inc)?((+S.tg.inc.p1||0)+(+S.tg.inc.p2||0)):0;
   ['tg','funds','people','uid_p1','uid_p2','pname_p1','pname_p2','settles'].forEach(k=>{if(k in S)delete S[k]});
-  if(!S.aptPlan||typeof S.aptPlan!=='object')S.aptPlan={monthly:50000,cash:null};
+  if(!S.aptPlan||typeof S.aptPlan!=='object')S.aptPlan={monthly:0,cash:null};
   Object.entries(S.budget||{}).forEach(([k,b])=>{if(b.fixed==null)b.fixed=!!FIXED[k]});
   (S.goals||[]).forEach((g,i)=>{if(!g.id)g.id=Date.now()+i});
   /* bills saved before payment tracking: take the day from the "Nov 5" label and owe nothing before today */
   (S.bills||[]).forEach(b=>{if(!b.day)b.day=Math.min(28,Math.max(1,parseInt(String(b.due||'').replace(/\D+/g,' ').trim().split(' ').pop())||1));if(!b.start)b.start=iso(new Date());if(!b.cat)b.cat=billCat(b.name)});
   if(Array.isArray(S.cards)){
     const fresh=!S.cards.some(c=>c.main)&&!S.cards.some(c=>c.bal!==undefined);
-    if(fresh){const nm=['Salary account','Savings','Joint account'],bl=[0,S.fsav||120000,45000];S.cards.forEach((c,i)=>{c.name=nm[i]||c.name;c.bal=bl[i]||0;if(i===0)c.main=true})}
+    if(fresh){const nm=['Salary account','Savings','Joint account'],bl=[0,0,0];S.cards.forEach((c,i)=>{c.name=nm[i]||c.name;c.bal=bl[i]||0;if(i===0)c.main=true})}
     const had=localStorage.getItem(JKEY)!=null;
-    if(fresh||!had){const jc=S.cards.length>=3?S.cards.splice(2,1)[0]:null;if(!had){const c=jc||{id:Date.now(),cls:'blue',name:'Joint account',bal:45000,last:'2210',exp:'12/29',holder:''};c.id=c.id||Date.now();c.main=false;jsave({cards:[c]})}}
+    if(fresh||!had){const jc=S.cards.length>=3?S.cards.splice(2,1)[0]:null;if(!had){const c=jc||{id:Date.now(),cls:'blue',name:'Joint account',bal:0,last:'2210',exp:'12/29',holder:''};c.id=c.id||Date.now();c.main=false;jsave({cards:[c]})}}
   }
 }
 const gAmt=t=>-t.a;
@@ -788,10 +879,10 @@ function planCard(){
   const tl=keys.map(k=>{const rs=groups[k],t=sum(rs.map(r=>+r.x.c));
     return `<div class="mon"><h4>${k==='x'?'Needs more savings':monLbl(+k)}<span>${rs.length} item${rs.length===1?'':'s'} · ${fmt(t,'G$')}</span></h4>${rs.map(r=>`<div class="srow"><button class="cb" data-tick="${r.x.id}" aria-pressed="false" aria-label="Mark ${esc(r.x.i)} bought">${ic('check')}</button><div class="grow">${esc(r.x.i)}<small>${esc(r.x.a)}</small></div><b>${fmt(r.x.c,'G$')}</b></div>`).join('')}</div>`}).join('');
   const show=ui.planAll?pl.unp:pl.unp.slice(0,8);
-  const unp=pl.unp.length?`<div class="mon"><h4>Add prices so they join the plan<span>${pl.unp.length} item${pl.unp.length===1?'':'s'}</span></h4>${show.map(x=>`<div class="srow"><div class="grow">${esc(x.i)}<small>${esc(x.a)}${guessP(x)?` · rough guide ${fmt(guessP(x),'G$')}`:''}</small></div>${guessP(x)?`<button class="btn sm" data-use="${x.id}:${guessP(x)}">Use</button>`:''}<input class="cell num" style="max-width:120px" type="number" min="0" step="any" placeholder="G$ price" data-ck="${x.id}:c" aria-label="Price for ${esc(x.i)}"></div>`).join('')}<div class="btns" style="margin-top:10px">${pl.unp.some(guessP)?`<button class="btn sm" data-act="planguess">Fill all with rough estimates</button>`:''}</div>${pl.unp.length>8?`<button class="btn sm" style="margin-top:10px" data-act="planall">${ui.planAll?'Show fewer':'Show all '+pl.unp.length}</button>`:''}</div>`:'';
+  const unp=pl.unp.length?`<div class="mon"><h4>Add prices so they join the plan<span>${pl.unp.length} item${pl.unp.length===1?'':'s'}</span></h4>${show.map(x=>`<div class="srow"><div class="grow">${esc(x.i)}<small>${esc(x.a)}${guessP(x)?` · rough guide ${fmt(guessP(x),'G$')}`:''}</small></div>${guessP(x)?`<button class="btn sm" data-use="${x.id}:${guessP(x)}">Use</button>`:''}<input class="cell num" style="max-width:120px" type="number" inputmode="decimal" min="0" step="any" placeholder="G$ price" data-ck="${x.id}:c" aria-label="Price for ${esc(x.i)}"></div>`).join('')}<div class="btns" style="margin-top:10px">${pl.unp.some(guessP)?`<button class="btn sm" data-act="planguess">Fill all with rough estimates</button>`:''}</div>${pl.unp.length>8?`<button class="btn sm" style="margin-top:10px" data-act="planall">${ui.planAll?'Show fewer':'Show all '+pl.unp.length}</button>`:''}</div>`:'';
   const fin=!pl.rows.length?'Nothing priced is left to buy.':never?'You need to add more to the monthly amount to finish.':lastK===0?'You can afford everything priced right now.':`Everything priced is bought by ${monLbl(lastK)}.`;
   return `<div class="card plan" style="margin-bottom:16px"><div class="row" style="flex-wrap:wrap"><div><h3><span class="ico">${ic('cal')}</span>Buying plan</h3><div class="hint">Items are ordered by priority, then basics first, then comfort, then the entertainment room. Rough price guides are sample figures, not real quotes.</div></div><button class="btn sm" data-act="plantoggle">${open?'Hide':'Show'}</button></div>
-  ${open?`<div class="pl-in"><label>Saved for the apartment (G$)<input class="in" type="number" min="0" step="1000" value="${Math.round(pl.cash)}" data-aplan="cash"></label><label>Added each month (G$)<input class="in" type="number" min="0" step="1000" value="${Math.round(pl.mo)}" data-aplan="monthly"></label></div>
+  ${open?`<div class="pl-in"><label>Saved for the apartment (G$)<input class="in" type="number" inputmode="decimal" min="0" step="1000" value="${Math.round(pl.cash)}" data-aplan="cash"></label><label>Added each month (G$)<input class="in" type="number" inputmode="decimal" min="0" step="1000" value="${Math.round(pl.mo)}" data-aplan="monthly"></label></div>
   <div class="sumline"><span class="tchip" style="margin:0">${fmt(pl.total,'G$')} priced to buy</span><span class="tchip" style="margin:0">${pl.unp.length} without a price</span></div><p class="cl-t" style="margin:10px 0 0">${fin} Check store promotions before the big purchases.</p>
   ${tl}${unp}
   <div class="btns" style="margin-top:16px"><button class="btn sm dark" data-act="planai">Ask Cleo to review this plan</button></div>${aiBox('plan')}`:''}</div>`;
@@ -843,15 +934,15 @@ function openSetup(){
   ensureTg();
   const rows=(S.bills||[]).map(b=>({n:b.name,a:Math.round(b.amt),d:b.day||(parseInt(String(b.due).replace(/\D+/g,' ').trim().split(' ').pop())||'')}));
   while(rows.length<(S.bills||[]).length+2)rows.push({n:'',a:'',d:''});
-  const bill=(r,i)=>`<div class="two" style="grid-template-columns:1.4fr 1fr .6fr;gap:8px;margin-bottom:8px"><input class="in" data-bn="${i}" placeholder="Bill name" maxlength="30" value="${esc(r.n)}" aria-label="Bill name"><input class="in" data-ba="${i}" type="number" min="0" step="any" placeholder="G$ / month" value="${r.a}" aria-label="Bill amount"><input class="in" data-bd="${i}" type="number" min="1" max="28" step="1" placeholder="Day" value="${r.d}" aria-label="Day of month due"></div>`;
-  const lim=Object.keys(S.budget).map(k=>`<label class="f">${esc(k)}<input class="in" data-lim="${esc(k)}" type="number" min="0" step="any" value="${Math.round(S.budget[k].limit)}"></label>`).join('');
+  const bill=(r,i)=>`<div class="two" style="grid-template-columns:1.4fr 1fr .6fr;gap:8px;margin-bottom:8px"><input class="in" data-bn="${i}" placeholder="Bill name" maxlength="30" value="${esc(r.n)}" aria-label="Bill name"><input class="in" data-ba="${i}" type="number" inputmode="decimal" min="0" step="any" placeholder="G$ / month" value="${r.a}" aria-label="Bill amount"><input class="in" data-bd="${i}" type="number" inputmode="decimal" min="1" max="28" step="1" placeholder="Day" value="${r.d}" aria-label="Day of month due"></div>`;
+  const lim=Object.keys(S.budget).map(k=>`<label class="f">${esc(k)}<input class="in" data-lim="${esc(k)}" type="number" inputmode="decimal" min="0" step="any" value="${Math.round(S.budget[k].limit)}"></label>`).join('');
   modal(`<h3>Set up your real numbers</h3><div class="hint">Enter what is true today. You can come back and change any of this later.</div>
   <form id="setupform" class="form" style="margin-top:12px"><div style="max-height:62vh;overflow:auto;padding-right:6px">
-  <h4 style="margin:6px 0">Monthly income (G$)</h4><label class="f">Total income per month<input class="in" id="su-inc" type="number" min="0" step="any" value="${S.income}"></label>
-  <h4 style="margin:14px 0 6px">What the accounts hold now</h4><div class="two"><label class="f">Cash and bank (G$)<input class="in" id="su-gyd" type="number" min="0" step="any" value="${S.acc.GYD}"></label><label class="f">USD (US$)<input class="in" id="su-usd" type="number" min="0" step="any" value="${S.acc.USD}"></label></div><div class="two"><label class="f">EUR (€)<input class="in" id="su-eur" type="number" min="0" step="any" value="${S.acc.EUR}"></label><label class="f">GBP (£)<input class="in" id="su-gbp" type="number" min="0" step="any" value="${S.acc.GBP}"></label></div>
+  <h4 style="margin:6px 0">Monthly income (G$)</h4><label class="f">Total income per month<input class="in" id="su-inc" type="number" inputmode="decimal" min="0" step="any" value="${S.income}"></label>
+  <h4 style="margin:14px 0 6px">What the accounts hold now</h4><div class="two"><label class="f">Cash and bank (G$)<input class="in" id="su-gyd" type="number" inputmode="decimal" min="0" step="any" value="${S.acc.GYD}"></label><label class="f">USD (US$)<input class="in" id="su-usd" type="number" inputmode="decimal" min="0" step="any" value="${S.acc.USD}"></label></div><div class="two"><label class="f">EUR (€)<input class="in" id="su-eur" type="number" inputmode="decimal" min="0" step="any" value="${S.acc.EUR}"></label><label class="f">GBP (£)<input class="in" id="su-gbp" type="number" inputmode="decimal" min="0" step="any" value="${S.acc.GBP}"></label></div>
   <h4 style="margin:14px 0 6px">Fixed bills</h4>${rows.map(bill).join('')}<div class="hint">Leave a row empty to remove that bill.</div>
   <h4 style="margin:14px 0 6px">Monthly spending limits (G$)</h4><div class="hint" id="su-left" aria-live="polite" style="margin-bottom:8px"></div><div class="two">${lim}</div>
-  <label class="f" style="flex-direction:row;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="su-clear" ${S.setupDone?'':'checked'}> Clear the sample transactions and start fresh</label></div>
+  <label class="f" style="flex-direction:row;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="su-clear" ${S.setupDone?'':'checked'}> Clear past transactions and start fresh</label></div>
   <button class="btn dark" type="submit" style="margin-top:14px;width:100%">Save</button></form>`);
   const m=$('#modalroot .modal');if(m)m.style.width='min(560px,100%)';
   suLeft();
@@ -881,9 +972,9 @@ function openQuick(tab){
   ensureTg();ui.qt=tab||ui.qt||'expense';const t=ui.qt;
   const tabs=[['expense','Expense'],['income','Income'],['balance','Update balance']].map(([k,l])=>`<button type="button" class="tab" role="tab" aria-selected="${t===k}" data-qt="${k}">${l}</button>`).join('');
   let body='';
-  if(t==='expense')body=`<label class="f">Amount (G$)<input class="in" id="qa-a" type="number" min="1" step="any" required autofocus></label><label class="f">What was it?<input class="in" id="qa-d" maxlength="50" placeholder="e.g. Groceries at Bounty"></label><label class="f">Category<select class="in" id="qa-c">${Object.keys(S.budget).map(k=>`<option>${esc(k)}</option>`).join('')}</select></label>`;
-  else if(t==='income')body=`<label class="f">Amount received (G$)<input class="in" id="qa-a" type="number" min="1" step="any" required autofocus></label><label class="f">From<input class="in" id="qa-d" maxlength="50" value="Salary"></label><div class="hint">This adds to your cash and bank balance.</div>`;
-  else body=`<label class="f">Account<select class="in" id="qa-cur">${Object.keys(S.acc).map(k=>`<option>${k}</option>`).join('')}</select></label><label class="f">What it really shows now<input class="in" id="qa-a" type="number" min="0" step="any" required value="${S.acc.GYD}" autofocus></label><div class="hint">Use this after you check your bank or MMG. The difference is recorded as a correction, not as spending.</div>`;
+  if(t==='expense')body=`<label class="f">Amount (G$)<input class="in" id="qa-a" type="number" inputmode="decimal" min="1" step="any" required autofocus></label><label class="f">What was it?<input class="in" id="qa-d" maxlength="50" placeholder="e.g. Groceries at Bounty"></label><label class="f">Category<select class="in" id="qa-c">${Object.keys(S.budget).map(k=>`<option>${esc(k)}</option>`).join('')}</select></label>`;
+  else if(t==='income')body=`<label class="f">Amount received (G$)<input class="in" id="qa-a" type="number" inputmode="decimal" min="1" step="any" required autofocus></label><label class="f">From<input class="in" id="qa-d" maxlength="50" value="Salary"></label><div class="hint">This adds to your cash and bank balance.</div>`;
+  else body=`<label class="f">Account<select class="in" id="qa-cur">${Object.keys(S.acc).map(k=>`<option>${k}</option>`).join('')}</select></label><label class="f">What it really shows now<input class="in" id="qa-a" type="number" inputmode="decimal" min="0" step="any" required value="${S.acc.GYD}" autofocus></label><div class="hint">Use this after you check your bank or MMG. The difference is recorded as a correction, not as spending.</div>`;
   modal(`<h3>Add</h3><div class="tabs" role="tablist" style="margin:8px 0 12px">${tabs}</div><form id="qaform" class="form">${body}<button class="btn dark" type="submit" style="margin-top:10px;width:100%">${t==='balance'?'Update balance':'Save'}</button></form>`);
   if(t==='balance'){const s=$('#qa-cur'),a=$('#qa-a');s.onchange=()=>{a.value=S.acc[s.value]}}
 }
@@ -906,7 +997,7 @@ const nudgeCards=()=>{const n=nudges();return n.length?`<div class="stack" style
 function profile(){
   ensureTg();const p=prof()||{},col=p.color||'#e8622a';
   const ini=(p.name||'?').split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
-  const role=(user&&/@demo\.codear\.app$/.test(user.email||''))?'Demo account':'Account on this device';
+  const role='Account on this device';
   const sw=['#e8622a','#3c52d9','#2f9e6a','#8a5cf5','#d6336c','#1f2937'].map(c=>`<button type="button" class="swc" data-pcol="${c}" aria-pressed="${c===col}" aria-label="Colour ${c}" style="background:${c}"></button>`).join('');
   const gs=['','Male','Female','Prefer not to say'].map(g=>`<option value="${g}" ${g===(p.gender||'')?'selected':''}>${g||'Select'}</option>`).join('');
   return `<div class="page-head"><div><h1>Profile</h1><div class="sub">Your details and how you show up in the app.</div></div></div>
@@ -918,13 +1009,20 @@ function profile(){
    <form class="form" id="profform" style="margin-top:12px"><label class="f">Full name<input class="in" id="pf-n" maxlength="40" required value="${esc(p.name||'')}"></label>
    <div class="two"><label class="f">Email<input class="in" id="pf-e" type="email" maxlength="60" required value="${esc(p.email||'')}"></label><label class="f">Phone<input class="in" id="pf-p" maxlength="24" value="${esc(p.phone||'')}"></label></div>
    <div class="two"><label class="f">City<input class="in" id="pf-c" maxlength="40" value="${esc(p.city||'')}"></label><label class="f">Gender<select class="in" id="pf-g">${gs}</select></label></div>
-   <label class="f">Monthly income (G$)<input class="in" id="pf-i" type="number" min="0" step="any" value="${S.income}"></label>
+   <label class="f">Monthly income (G$)<input class="in" id="pf-i" type="number" inputmode="decimal" min="0" step="any" value="${S.income}"></label>
    <button class="btn dark" type="submit" style="margin-top:6px">Save profile</button></form></div></div>
   <div class="card"><h3><span class="ico">${ic('lock')}</span>Account</h3><div class="hint">Your income here is the figure the dashboard uses for the month.</div><button class="btn sm dark" style="margin-top:12px;margin-right:8px" data-act="setup">Edit income, balances and bills</button><button class="btn sm" style="margin-top:12px;margin-right:8px" data-act="logout">Sign out</button></div>`;
 }
 function saveProfile(){
-  const all=ldj(PKEY,{}),old=(user.email||'').toLowerCase(),prev=prof(),email=$('#pf-e').value.trim(),key=email.toLowerCase(),name=$('#pf-n').value.trim();
+  const all=ldj(PKEY,{}),old=(user.email||'').toLowerCase(),prev=prof(),name=$('#pf-n').value.trim();
+  let email=$('#pf-e').value.trim(),key=email.toLowerCase();
   if(!name||!/^\S+@\S+\.\S+$/.test(email)){toast('Enter a name and a valid email');return}
+  if(SB&&user.id){
+    /* the email changes only after the person clicks the link Supabase sends; until then keep the old one */
+    if(key!==old){const ne=email;email=user.email;key=old;
+      SB.auth.updateUser({email:ne},{emailRedirectTo:location.origin+location.pathname}).then(({error})=>toast(error?sbErr(error):'We sent a link to '+ne+'. Open it to finish changing your email.'))}
+    if(name!==user.name){SB.from('profiles').update({name}).eq('id',user.id).then(()=>{});SB.auth.updateUser({data:{name}}).catch(()=>{})}
+  }
   if(key!==old){delete all[old];const u=ldj(UKEY,{});if(u[old]){u[key]=u[old];delete u[old];svj(UKEY,u)}}
   all[key]={...prev,name,email,phone:$('#pf-p').value.trim(),city:$('#pf-c').value.trim(),gender:$('#pf-g').value};
   svj(PKEY,all);user={...user,name,email};svj(SKEY,user);
@@ -937,8 +1035,10 @@ function saveProfile(){
    collections joint_plans and joint_moves, both partners see them live, and whatever was saved
    here before is uploaded once. One document per plan and per move, so two people adding money
    at once never overwrite each other. People are stored only as ids (`who`), never names. */
-const JL='codear-joint2',JUP='codear-joint2-up',JSKIP='codear-joint2-skip';
-const J={mode:'local',state:'local',plans:{},moves:{},me:null,u:null,db:null,names:{}};
+let JL='pairwise-joint2',JUP='pairwise-joint2-up',JSKIP='pairwise-joint2-skip';
+/* with Supabase each account keeps its own copy on the device, so two people sharing a phone never mix plans */
+function jKeys(){const s=SB&&user&&user.id?':'+user.id:'';JL='pairwise-joint2'+s;JUP='pairwise-joint2-up'+s;JSKIP='pairwise-joint2-skip'+s}
+const J={mode:'local',state:'local',plans:{},moves:{},me:null,u:null,db:null,names:{},hh:null,code:null,ch:null,pull:null,sbReady:false,busy:false};
 const jMine=()=>J.mode==='cloud'?J.me:'local:'+((user&&user.email)||'').toLowerCase();
 const jCache=()=>svj(JL,{plans:J.plans,moves:J.moves});
 const jid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -967,6 +1067,13 @@ async function jWrite(kind,id,data){
   if(data)store[id]=data;else delete store[id];
   jCache();
   if(J.mode!=='cloud')return true;
+  if(SB){
+    try{
+      const q=SB.from('joint_'+kind),hh=J.hh;
+      const r=await (data?q.upsert({household_id:hh,id,data},{onConflict:'household_id,id'}):q.delete().eq('household_id',hh).eq('id',id));
+      if(r.error)throw r.error;return true;
+    }catch(e){toast(e&&e.code==='42501'?'You can only change entries you added.':'Could not save to the shared plans. Check your connection and try again.');if(J.pull)J.pull();return false}
+  }
   try{const ref=J.db.collection('joint_'+kind).doc(id);await (data?ref.set(data):ref.delete());return true}
   catch(e){const c=e&&e.code;toast(c==='invalid_argument'?'You can see the joint plans but not change them. Ask to be invited as an Editor.':c==='quota_exceeded'?'The shared storage is full.':'Could not save to the shared plans. Check your connection and try again.');return false}
 }
@@ -991,7 +1098,76 @@ async function jUpload(p){
   for(const [id,x] of Object.entries(p.moves||{})){if(J.moves[id])continue;if(x.opening&&hasOpening){svj(JSKIP,(+ldj(JSKIP,0)||0)+(+x.amt||0));continue}ok=await jWrite('moves',id,fix(x))&&ok}
   if(ok)try{localStorage.setItem(JUP,'1')}catch(e){}
 }
+/* Supabase: partners share a household (joined with an invite code). Plans and moves are rows tagged with
+   the household; any change re-reads both small tables, so both phones always show the same thing. */
+const fmtCode=c=>c?c.slice(0,5)+'-'+c.slice(5):'';
+async function jConnectSB(){
+  if(J.mode==='cloud'||!user||!user.id)return;
+  const uid=user.id;
+  const {data:p,error}=await SB.from('profiles').select('household_id').eq('id',uid).maybeSingle();
+  if(!user||user.id!==uid||J.mode==='cloud')return;
+  if(error){J.sbReady=false;refreshJ();return}
+  J.sbReady=true;
+  if(!p||!p.household_id){refreshJ();return}
+  const hh=p.household_id;
+  SB.from('households').select('code').eq('id',hh).maybeSingle().then(({data})=>{if(J.hh===hh&&data){J.code=data.code;refreshJ()}});
+  let pending=ldj(JUP,null)?null:{plans:{...J.plans},moves:{...J.moves}},t=0;
+  Object.assign(J,{me:uid,hh,mode:'cloud',state:'connecting',
+    u:{profiles:ids=>SB.from('profiles').select('id,name').in('id',ids).then(({data})=>{const o={};(data||[]).forEach(r=>{o[r.id]={name:r.name}});return o})}});
+  refreshJ();
+  const rows=r=>{if(r.error)throw r.error;const o={};r.data.forEach(d=>{o[d.id]=d.data});return o};
+  const pull=async()=>{
+    const [a,b]=await Promise.all(['plans','moves'].map(k=>SB.from('joint_'+k).select('id,data').eq('household_id',hh)));
+    if(J.hh!==hh)return;
+    J.plans=rows(a);J.moves=rows(b);J.state='live';jCache();
+    if(pending){const x=pending;pending=null;await jUpload(x)}
+    jNames();refreshJ();
+  };
+  J.pull=()=>{clearTimeout(t);t=setTimeout(()=>pull().catch(()=>{if(J.hh===hh){J.state='stale';refreshJ()}}),250)};
+  try{await pull()}catch(e){if(J.hh===hh){J.state='error';refreshJ()}}
+  if(J.hh!==hh)return;
+  const f={schema:'public',filter:'household_id=eq.'+hh};
+  J.ch=SB.channel('joint-'+hh)
+    .on('postgres_changes',{event:'*',table:'joint_plans',...f},()=>J.pull&&J.pull())
+    .on('postgres_changes',{event:'*',table:'joint_moves',...f},()=>J.pull&&J.pull())
+    .subscribe(s=>{if(s==='SUBSCRIBED'){if(J.pull)J.pull()}else if((s==='CHANNEL_ERROR'||s==='TIMED_OUT')&&J.hh===hh){J.state='stale';refreshJ()}});
+}
+function jStop(){
+  if(J.ch&&SB){try{SB.removeChannel(J.ch)}catch(e){}}
+  Object.assign(J,{mode:'local',state:'local',me:null,u:null,db:null,names:{},hh:null,code:null,ch:null,pull:null,sbReady:false,busy:false});
+}
+async function hhAction(kind,code){
+  if(!SB||J.busy)return;J.busy=true;refreshJ();
+  try{
+    if(kind==='create'){const {error}=await SB.rpc('create_household');if(error)throw error}
+    else if(kind==='join'){const {error}=await SB.rpc('join_household',{p_code:code});if(error)throw error}
+    else if(kind==='leave'){
+      const {error}=await SB.rpc('leave_household');if(error)throw error;
+      jStop();J.plans={};J.moves={};jCache();try{localStorage.removeItem(JUP)}catch(e){}
+      J.sbReady=true;ui.hhleave=false;refresh();toast('You left the household');return;
+    }
+    J.busy=false;await jConnectSB();
+    toast(kind==='create'?'Invite code ready. Share it with your partner':'You are now linked with your partner');
+  }catch(e){
+    const m=(e&&e.message)||'';
+    toast(/invalid_code/.test(m)?'That code was not found. Check it and try again.':/household_full/.test(m)?'That household already has two people.':/already_in_household/.test(m)?'You are already linked. Leave your current household first.':sbErr(e));
+  }finally{J.busy=false;refreshJ()}
+}
+function jHouseHTML(){
+  if(!SB)return '';
+  if(J.mode==='cloud')return `<div class="card" style="margin-bottom:16px"><h3><span class="ico">${ic('users')}</span>Your household</h3>
+    <div class="hint">Your partner joins with this invite code. A household holds two people.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px"><b style="font-family:'Geist Mono',monospace;font-size:18px;letter-spacing:.06em">${esc(fmtCode(J.code)||'…')}</b>
+    ${J.code?'<button class="btn sm" type="button" data-hh="copy">Copy code</button>':''}
+    ${ui.hhleave?'<button class="btn sm orange" type="button" data-hh="leave-go">Yes, leave. I will lose access to these plans</button><button class="btn sm" type="button" data-hh="leave-no">Cancel</button>':'<button class="btn sm" type="button" data-hh="leave">Leave household</button>'}</div></div>`;
+  if(!J.sbReady)return '';
+  return `<div class="card" style="margin-bottom:16px"><h3><span class="ico">${ic('users')}</span>Link with your partner</h3>
+    <div class="hint">One of you creates an invite code, the other enters it. After that you both see the same plans, live. What you saved here so far is shared once you link.</div>
+    <div style="margin-top:12px"><button class="btn sm dark" type="button" data-hh="create" ${J.busy?'disabled':''}>Create invite code</button></div>
+    <form class="form" id="hhjoin" style="margin-top:12px"><label class="f">Or enter your partner's code<input class="in" id="hh-c" maxlength="16" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. 7KQ2M-X9WRT"></label><button class="btn sm" type="submit" ${J.busy?'disabled':''}>Join</button></form></div>`;
+}
 async function jConnect(){
+  if(SB)return jConnectSB();
   if(J.mode==='cloud'||!window.claude||!claude.use)return;
   let db,u;try{[db,u]=await Promise.all([claude.use('db'),claude.use('user')])}catch(e){return}
   if(!db||!u)return;const me=await u.id();if(!me)return;
@@ -1026,7 +1202,7 @@ function joint(){
     const per={};M.filter(m=>m.plan===p.id).forEach(m=>{const k=m.who||'';per[k]=(per[k]||0)+(+m.amt||0)});
     const who=Object.entries(per).filter(([,v])=>Math.abs(v)>0.005).map(([w,v])=>`${esc(jWho(w))} ${fmt0(v)}`).join(' · ');
     const fc=left<=0?'Target reached. Well done, you two.':p.monthly>0?`At ${fmt0(p.monthly)} a month you get there in about ${n} month${n>1?'s':''} (${monLbl(n)}).`:'Add a monthly amount to see when you will get there.';
-    const body=ui.jedit===p.id?`<form class="form" id="jpedit" data-id="${p.id}"><label class="f">Name<input class="in" id="je-n" maxlength="40" required value="${esc(p.name)}"></label><div class="two"><label class="f">Target (G$)<input class="in" id="je-t" type="number" min="1" step="any" required value="${Math.round(p.target)}"></label><label class="f">Monthly amount (G$)<input class="in" id="je-m" type="number" min="0" step="any" value="${p.monthly?Math.round(p.monthly):''}" placeholder="Optional"></label></div>
+    const body=ui.jedit===p.id?`<form class="form" id="jpedit" data-id="${p.id}"><label class="f">Name<input class="in" id="je-n" maxlength="40" required value="${esc(p.name)}"></label><div class="two"><label class="f">Target (G$)<input class="in" id="je-t" type="number" inputmode="decimal" min="1" step="any" required value="${Math.round(p.target)}"></label><label class="f">Monthly amount (G$)<input class="in" id="je-m" type="number" inputmode="decimal" min="0" step="any" value="${p.monthly?Math.round(p.monthly):''}" placeholder="Optional"></label></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm dark" type="submit">Save</button><button class="btn sm" type="button" data-jedit="">Cancel</button>${ui.jdel===p.id?`<button class="btn sm orange" type="button" data-jdelgo="${p.id}">Yes, delete${s?`. Keep its ${fmt0(s)} as not assigned`:''}</button>`:`<button class="btn sm" type="button" data-jdel="${p.id}">Delete plan</button>`}</div></form>`
       :`<div class="hint fc" style="margin-top:6px">${fc}</div>${who?`<div class="hint">${who}</div>`:''}<div style="margin-top:10px"><button class="link" data-jedit="${p.id}">Edit</button></div>`;
     return `<div class="card fund"><h3><span class="ico cat-ic">${ic('home')}</span>${esc(p.name)}</h3><div class="row" style="margin-top:10px"><span style="font-size:22px;font-weight:600;letter-spacing:-.02em">${fmt(s)}</span><span class="hint" style="margin:0">of ${fmt0(p.target)}</span></div><div class="meter"><i data-w="${pct.toFixed(1)}"></i></div>${body}</div>`;
@@ -1034,22 +1210,149 @@ function joint(){
   const hist=M.slice(0,25).map(m=>{const w=jWho(m.who);return `<div class="tx"><div class="av">${esc(w.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div><b>${m.amt>=0?'Added to':'Taken from'} ${esc(m.plan?jPlanName(m.plan):'Joint savings')}</b><small>${esc(w)} · ${dfmt(new Date(m.ts))}${m.note?' · '+esc(m.note):''}${m.from==='salary'?' · from salary':''}</small></div><div class="row" style="gap:6px"><span class="a ${m.amt>=0?'inc':''}">${m.amt>=0?'+':'-'}${fmt(Math.abs(m.amt))}</span>${m.who===me?`<button class="xdel" data-jmdel="${m.id}" aria-label="Remove this entry">×</button>`:''}</div></div>`}).join('');
   return `<div class="page-head"><div><h1>Joint plans</h1><div class="sub">Shared savings for big plans, like building a house.</div></div><span class="syncb" data-s="${st[0]}"><i></i><span>${st[1]}</span></span></div>
   ${+ldj(JSKIP,0)>0?`<div class="note">${ic('req')}<div><b>Your old joint card on this phone showed ${fmt(+ldj(JSKIP,0))}.</b> It was not added, because a joint balance from your partner's phone was already shared and it may be the same money. If it is different money, add it.<div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm dark" data-jskip="add">Add it</button><button class="btn sm" data-jskip="no">It is the same money</button></div></div></div>`:''}
-  ${J.mode==='local'?`<div class="note">${ic('users')}<div><b>Only on this device for now.</b> When the app is put online, these plans sync with your partner's phone automatically, and everything saved here is uploaded.</div></div>`:''}
+  ${J.mode==='local'&&!(SB&&J.sbReady)?`<div class="note">${ic('users')}<div><b>Only on this device for now.</b> ${SB?'Linking with your partner appears here once the app can reach the server.':'When the app is put online, these plans sync with your partner\'s phone automatically, and everything saved here is uploaded.'}</div></div>`:''}
+  ${jHouseHTML()}
   <div class="grid g-2" style="margin-bottom:16px">
     <div class="card hero"><h4>Saved together</h4><div class="hv" data-count="${tot}" data-f="$">0</div>${un>0.005&&P.length?`<div class="hs">${fmt(un)} not assigned to a plan</div>`:''}<div class="al jshare">${shares||'<div><span>No money added yet</span></div>'}</div></div>
-    <div class="card"><h3>Add or take out money</h3>${P.length||M.length?`<form class="form" id="jform"><div class="two"><label class="f">Plan<select class="in" id="jf-p"><option value="">Not assigned to a plan</option>${P.map(p=>`<option value="${p.id}" ${p.id===ui.jplan?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="jf-a" type="number" min="0.01" step="any" required></label></div>
+    <div class="card"><h3>Add or take out money</h3>${P.length||M.length?`<form class="form" id="jform"><div class="two"><label class="f">Plan<select class="in" id="jf-p"><option value="">Not assigned to a plan</option>${P.map(p=>`<option value="${p.id}" ${p.id===ui.jplan?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="jf-a" type="number" inputmode="decimal" min="0.01" step="any" required></label></div>
       <label class="f">Note (optional)<input class="in" id="jf-n" maxlength="60" placeholder="e.g. November savings"></label>
       <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="jf-f" checked style="width:auto;margin:0"> Move it from, or back to, my Salary account</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="submit" value="add">Add money</button><button class="btn" type="submit" value="out">Take out</button></div></form>`:'<div class="hint">Create your first plan below, then add money to it here.</div>'}</div></div>
   ${P.length?`<div class="grid g-3" style="margin-bottom:16px">${P.map(planCard).join('')}</div>`:''}
-  <form class="card" id="jnew" style="margin-bottom:16px"><h3>${ic('plus')}New plan</h3><div class="form"><div class="two"><label class="f">What are you saving for?<input class="in" id="jn-n" maxlength="40" required placeholder="e.g. Build our house"></label><label class="f">Target (G$)<input class="in" id="jn-t" type="number" min="1" step="any" required></label></div><label class="f">Monthly amount you plan to put in together (G$, optional)<input class="in" id="jn-m" type="number" min="0" step="any"></label><button class="btn dark" type="submit" style="justify-content:center">Create plan</button></div></form>
+  <form class="card" id="jnew" style="margin-bottom:16px"><h3>${ic('plus')}New plan</h3><div class="form"><div class="two"><label class="f">What are you saving for?<input class="in" id="jn-n" maxlength="40" required placeholder="e.g. Build our house"></label><label class="f">Target (G$)<input class="in" id="jn-t" type="number" inputmode="decimal" min="1" step="any" required></label></div><label class="f">Monthly amount you plan to put in together (G$, optional)<input class="in" id="jn-m" type="number" inputmode="decimal" min="0" step="any"></label><button class="btn dark" type="submit" style="justify-content:center">Create plan</button></div></form>
   <div class="card"><h3>History</h3><div class="hint">Everyone sees every entry. You can remove only the ones you added.</div><div style="margin-top:6px">${hist||'<div class="hint" style="padding:10px 0">Nothing yet.</div>'}</div></div>`;
 }
-const VIEWS={dashboard,analytics,transfer,wallet,budget,checklist,profile,joint};
-const NAV=[['dashboard','Dashboard','grid'],['analytics','Analytics','chart'],['transfer','Transfer','send'],['wallet','Wallet','wallet'],['budget','Budget','pie'],['checklist','Checklist','list'],['joint','Joint','users']];
+/* ---------- calendar ----------
+   One list of dated items, built on demand for a date range from: bills (S.bills, monthly on b.day),
+   payday (S.payDay, monthly, amount = monthly income) and the person's own reminders (S.rem).
+   Reminders: {id,t,kind:'rem'|'inc'|'sav',date:'YYYY-MM-DD',time:'HH:MM'|'',rep:'none'|'weekly'|'monthly'|'yearly',before:minutes,on:bool,amt} */
+const CAL_KINDS={bill:['Bills','bolt'],inc:['Income','down'],rem:['Reminders','clock'],sav:['Savings plans','target']};
+const REM_BEFORE=[[0,'At the time'],[60,'1 hour before'],[1440,'1 day before'],[4320,'3 days before'],[10080,'1 week before']];
+const REM_REP=[['none','Does not repeat'],['weekly','Weekly'],['monthly','Monthly'],['yearly','Yearly']];
+const pd=s=>new Date(s+'T12:00:00');
+const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const dim=(y,m)=>new Date(y,m+1,0).getDate();
+const payDay=()=>S.payDay||(S.cycle&&S.cycle.start?pd(S.cycle.start).getDate():1);
+const t12=t=>{if(!t)return '';const [h,m]=t.split(':').map(Number);return `${(h%12)||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`};
+const beforeLbl=m=>(REM_BEFORE.find(x=>x[0]===+m)||REM_BEFORE[2])[1];
+/* every date of reminder r between a and b (Date, inclusive), as ISO strings */
+function remDates(r,a,b){
+  const out=[],s=pd(r.date),A=iso(a),B=iso(b);if(isNaN(s))return out;
+  if(r.rep==='none'||!r.rep){if(r.date>=A&&r.date<=B)out.push(r.date);return out}
+  if(r.rep==='weekly'){let d=new Date(s);if(d<a){const k=Math.ceil((a-d)/(7*864e5));d=addD(d,7*k)}for(;iso(d)<=B;d=addD(d,7))if(iso(d)>=A)out.push(iso(d));return out}
+  const day=s.getDate();
+  for(let y=a.getFullYear(),m=a.getMonth();new Date(y,m,1)<=b;m++){if(m>11){m=0;y++}
+    if(r.rep==='yearly'&&m!==s.getMonth())continue;
+    const d=iso(new Date(y,m,Math.min(day,dim(y,m))));if(d>=r.date&&d>=A&&d<=B)out.push(d)}
+  return out;
+}
+/* map ISO day → items, for the days a..b */
+function calItems(a,b){
+  const map={},put=(d,x)=>(map[d]=map[d]||[]).push(x),A=iso(a),B=iso(b);
+  for(let y=a.getFullYear(),m=a.getMonth();new Date(y,m,1)<=b;m++){if(m>11){m=0;y++}
+    const ym=y+'-'+String(m+1).padStart(2,'0');
+    (S.bills||[]).forEach(bl=>{const d=iso(new Date(y,m,Math.min(28,Math.max(1,bl.day|0||1))));if(d<A||d>B||d<(bl.start||''))return;
+      put(d,{kind:'bill',id:'b'+bl.id,t:bl.name,amt:+bl.amt||0,ic:bl.ic||'bolt',sub:bl.paidFor===ym?'Paid':bl.auto?'Autopay · from your bills':'Auto-added from your bills'})});
+    const inc=tgIncome();if(inc>0){const d=iso(new Date(y,m,Math.min(payDay(),dim(y,m))));if(d>=A&&d<=B)put(d,{kind:'inc',id:'pay',t:'Payday',amt:inc,ic:'down',sub:'Monthly income · Salary account',pay:true})}
+  }
+  (S.rem||[]).forEach(r=>remDates(r,a,b).forEach(d=>put(d,{kind:r.kind||'rem',id:r.id,t:r.t,amt:+r.amt||0,time:r.time,r,
+    sub:[r.time?t12(r.time):'',r.kind==='inc'?'Expected':r.kind==='sav'?'Plan':'Reminder',r.rep&&r.rep!=='none'?REM_REP.find(x=>x[0]===r.rep)[1]:'',r.on&&r.kind==='rem'?beforeLbl(r.before):''].filter(Boolean).join(' · ')})));
+  Object.values(map).forEach(l=>l.sort((x,y)=>(x.time||'99')<(y.time||'99')?-1:1));
+  return map;
+}
+const calChip=x=>`<span class="ce k-${x.kind}"><i></i><span>${esc(x.t)}${x.time?' '+t12(x.time).replace(':00','').replace(' ','').toLowerCase():''}</span></span>`;
+function calRow(x,dateBox){
+  const amt=x.amt?`<b class="ca ${x.kind==='inc'?'good':''}">${x.kind==='inc'?'+':''}${fmt0(x.amt)}</b>`:'';
+  const tog=x.r?`<button class="sw" role="switch" aria-checked="${!!x.r.on}" aria-label="Remind me about ${esc(x.t)}" data-remtog="${x.r.id}"></button>`:'';
+  const del=x.r?`<button class="cdel" data-remdel="${x.r.id}" aria-label="Delete ${esc(x.t)}">${ic('x')}</button>`:'';
+  const box=dateBox?`<span class="cbox k-${x.kind}">${pd(dateBox).getDate()}</span>`:`<span class="cbox k-${x.kind}">${ic(x.ic||CAL_KINDS[x.kind][1])}</span>`;
+  return `<div class="crow">${box}<div class="grow"><b>${esc(x.t)}</b><small>${esc(x.sub||'')}</small></div><div class="cend">${amt}${x.r?`<div class="cctl">${tog}${del}</div>`:''}</div></div>`;
+}
+function calendar(){
+  const C=ui.cal=ui.cal||{view:'month',sel:iso(new Date())};
+  const today=iso(new Date()),sel=pd(C.sel),y=sel.getFullYear(),m=sel.getMonth();
+  const mStart=new Date(y,m,1),mEnd=new Date(y,m,dim(y,m));
+  const wk=addD(sel,-((sel.getDay()+6)%7)),wkEnd=addD(wk,6);
+  const agEnd=addD(sel,44);
+  const M=calItems(new Date(Math.min(mStart,wk)),new Date(Math.max(mEnd,wkEnd,agEnd)));
+  const dayLbl=d=>pd(d).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
+  const title=C.view==='week'?`${wk.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${wkEnd.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`:sel.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const views=[['month','Month'],['week','Week'],['agenda','Agenda']].map(([k,l])=>`<button type="button" role="tab" aria-selected="${C.view===k}" data-cview="${k}">${l}</button>`).join('');
+  const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  let body='';
+  if(C.view==='month'){
+    const lead=(mStart.getDay()+6)%7;let cells='';
+    for(let i=0;i<lead;i++)cells+='<div class="cd blank" aria-hidden="true"></div>';
+    for(let d=1;d<=dim(y,m);d++){const k=iso(new Date(y,m,d)),L=M[k]||[];
+      cells+=`<button type="button" class="cd${k===C.sel?' picked':''}${k===today?' today':''}" data-cday="${k}" aria-pressed="${k===C.sel}" aria-label="${dayLbl(k)}${L.length?`, ${L.length} item${L.length>1?'s':''}`:''}" style="--i:${d}"><span class="dn">${d}</span><span class="cel">${L.slice(0,3).map(calChip).join('')}${L.length>3?`<span class="more">+${L.length-3} more</span>`:''}</span><span class="cdots" aria-hidden="true">${L.slice(0,4).map(x=>`<i class="k-${x.kind}"></i>`).join('')}</span></button>`}
+    body=`<div class="cgrid"><div class="cdow" aria-hidden="true">${DOW.map(d=>`<span>${d}</span>`).join('')}</div><div class="cdays">${cells}</div></div>`;
+  }else if(C.view==='week'){
+    body=`<div class="cweek">${[0,1,2,3,4,5,6].map(i=>{const k=iso(addD(wk,i)),L=M[k]||[],dd=pd(k);
+      return `<button type="button" class="cwd${k===C.sel?' picked':''}${k===today?' today':''}" data-cday="${k}" aria-pressed="${k===C.sel}"><span class="wdh"><small>${DOW[i]}</small><span class="dn">${dd.getDate()}</span></span><span class="cel">${L.map(calChip).join('')||'<span class="none">Nothing planned</span>'}</span></button>`}).join('')}</div>`;
+  }else{
+    const days=Object.keys(M).filter(k=>k>=C.sel&&k<=iso(agEnd)).sort();
+    body=`<div class="cagenda">${days.map(k=>`<div class="agd"><button type="button" class="agh${k===today?' today':''}" data-cday="${k}">${k===today?'Today · ':''}${dayLbl(k)}</button>${M[k].map(x=>calRow(x)).join('')}</div>`).join('')||'<div class="hint" style="padding:20px 0">Nothing in the next 6 weeks.</div>'}</div>`;
+  }
+  /* this month's totals */
+  let due=0,inc=0;Object.entries(M).forEach(([k,L])=>{if(k<iso(mStart)||k>iso(mEnd))return;L.forEach(x=>{if(x.kind==='bill')due+=x.amt;else if(x.kind==='inc')inc+=x.amt})});
+  const leftAfter=inc-due;
+  const legend=Object.entries(CAL_KINDS).map(([k,[l]])=>`<span><i class="k-${k}"></i>${l}</span>`).join('');
+  const selL=M[C.sel]||[];
+  const SM=calItems(addD(new Date(),1),addD(new Date(),30)),soon=[];Object.keys(SM).sort().forEach(k=>SM[k].filter(x=>x.r).forEach(x=>soon.length<4&&soon.push([k,x])));
+  const f=ui.remDraft||{};
+  return `<div class="page-head"><div><h1>Calendar</h1><div class="sub">Plan your month and never miss a bill or a payday</div></div><button class="btn dark" data-act="addrem">${ic('plus')}Add reminder</button></div>
+  <div class="cal">
+    <div class="card cmain">
+      <div class="chead"><div class="cnav"><button class="arw" data-cmove="-1" aria-label="Previous ${C.view==='week'?'week':'month'}"><svg class="ic" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button><h2>${title}</h2><button class="arw" data-cmove="1" aria-label="Next ${C.view==='week'?'week':'month'}"><svg class="ic" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>${C.sel!==today?'<button class="link" data-cday="'+today+'">Today</button>':''}</div><div class="cseg" role="tablist" aria-label="Calendar view">${views}</div></div>
+      ${body}
+      ${C.view==='month'?`<div class="cdaym" aria-live="polite"><h3 class="cdh">${C.sel===today?'Today · ':''}${dayLbl(C.sel)}</h3><div class="clist">${selL.map(x=>calRow(x)).join('')||'<div class="hint" style="padding:12px 0">Nothing planned</div>'}</div></div>`:''}
+      <div class="clegend">${legend}</div>
+      <div class="csum"><div><span>Due this month</span><b>${fmt0(due)}</b></div><div><span>Expected income</span><b>${fmt0(inc)}</b><button class="link" data-act="payday">Payday: the ${ord(payDay())}</button></div><div><span>Left after bills</span><b class="${leftAfter<0?'bad':''}">${leftAfter<0?'-':''}${fmt0(Math.abs(leftAfter))}</b></div></div>
+    </div>
+    <aside class="card cside">
+      <div class="cdays-side${C.view==='month'?' m-hide':''}"><h3 class="cdh">${C.sel===today?'Today · ':''}${dayLbl(C.sel)}</h3><div class="hint">${selL.length?`${selL.length} item${selL.length>1?'s':''}`:'Nothing planned'}</div>
+      <div class="clist">${selL.map(x=>calRow(x)).join('')}</div></div>
+      <h3 class="csh" id="remh">New reminder</h3>
+      <form id="remform" class="cform">
+        <input class="cf-in" id="rm-t" maxlength="40" required placeholder="Title, e.g. Pay school fees" aria-label="Title" value="${esc(f.t||'')}">
+        <label class="cf"><span>Type</span><select id="rm-k">${[['rem','Reminder'],['inc','Expected income'],['sav','Savings top-up']].map(([k,l])=>`<option value="${k}" ${(f.k||'rem')===k?'selected':''}>${l}</option>`).join('')}</select></label>
+        <label class="cf"><span>Date</span><input id="rm-d" type="date" required value="${f.d||C.sel}"></label>
+        <label class="cf"><span>Time</span><input id="rm-tm" type="time" value="${f.tm||''}"></label>
+        <label class="cf"><span>Amount</span><input id="rm-a" type="number" inputmode="decimal" min="0" step="any" placeholder="Optional, G$" value="${f.a||''}"></label>
+        <label class="cf"><span>Repeat</span><select id="rm-r">${REM_REP.map(([k,l])=>`<option value="${k}" ${(f.r||'none')===k?'selected':''}>${l}</option>`).join('')}</select></label>
+        <label class="cf"><span>Remind me</span><select id="rm-b">${REM_BEFORE.map(([k,l])=>`<option value="${k}" ${String(f.b??1440)===String(k)?'selected':''}>${l}</option>`).join('')}</select></label>
+        <button class="btn dark" type="submit">Save reminder</button>
+        <div class="hint" style="margin:0">Reminders show in the bell and when you open Pairwise. Expected income counts toward this month's income.</div>
+      </form>
+      ${soon.length?`<h3 class="csh">Coming up</h3><div class="clist">${soon.map(([k,x])=>calRow(x,k)).join('')}</div>`:''}
+    </aside>
+  </div>`;
+}
+const ord=n=>n+(n%100>=11&&n%100<=13?'th':['th','st','nd','rd'][n%10]||'th');
+/* reminders whose "remind me" time has come and whose day has not passed yet */
+function remAlerts(){
+  const now=new Date(),a=new Date(now.getFullYear(),now.getMonth(),now.getDate()),out=[];
+  (S.rem||[]).filter(r=>r.on).forEach(r=>{const d=remDates(r,a,addD(a,8))[0];if(!d)return;
+    const at=new Date(d+'T'+(r.time||'09:00')),alertAt=new Date(at-(+r.before||0)*6e4),end=new Date(d+'T23:59:59');
+    if(now>=alertAt&&now<=end)out.push({r,d,at})});
+  return out.sort((x,y)=>x.at-y.at);
+}
+const remWhen=x=>{const t=iso(new Date());return (x.d===t?'Today':x.d===iso(addD(new Date(),1))?'Tomorrow':dfmt(pd(x.d)))+(x.r.time?' at '+t12(x.r.time):'')};
+function calDraft(){const v=id=>$('#'+id)?.value;if(!$('#remform'))return;ui.remDraft={t:v('rm-t'),k:v('rm-k'),d:v('rm-d'),tm:v('rm-tm'),a:v('rm-a'),r:v('rm-r'),b:v('rm-b')}}
+const calRefresh=()=>{calDraft();refresh()};
 
+const VIEWS={dashboard,analytics,transfer,wallet,budget,checklist,calendar,profile,joint};
+const NAV=[['dashboard','Dashboard','grid'],['analytics','Analytics','chart'],['transfer','Transfer','send'],['wallet','Wallet','wallet'],['budget','Budget','pie'],['checklist','Checklist','list'],['calendar','Calendar','cal'],['joint','Joint','users']];
+
+/* phones (<768px): bottom tab bar with the main sections; the rest live under More */
+const TABS=['dashboard','wallet','budget','calendar'],MORE=['analytics','transfer','checklist','joint','profile'];
+const navLbl=k=>(NAV.find(n=>n[0]===k)||[k,k==='profile'?'Profile':k,k==='profile'?'user':'grid']);
+function renderTabbar(){const tb=$('#tabbar');if(!tb)return;const inMore=MORE.includes(ui.route);
+  tb.innerHTML=TABS.map(k=>{const [,l,i]=navLbl(k);return `<button data-go="${k}" ${k===ui.route?'aria-current="page"':''}>${ic(i)}<span>${l}</span></button>`}).join('')+`<button data-act="more" ${inMore?'aria-current="page"':''} aria-haspopup="dialog">${ic('more')}<span>${inMore?navLbl(ui.route)[1]:'More'}</span></button>`;
+  tb.hidden=false}
+function openMore(){modal(`<h3>More</h3><div class="morelist">${MORE.map(k=>{const [,l,i]=navLbl(k);return `<button data-go="${k}" ${k===ui.route?'aria-current="page"':''}><span class="ico">${ic(i)}</span>${l}</button>`}).join('')}</div>`)}
 /* ---------- render ---------- */
-function renderNav(){$('#nav').innerHTML=NAV.map(([k,l,i])=>`<button class="pill" data-go="${k}" ${k===ui.route?'aria-current="page"':''}>${k===ui.route?ic(i):''}${l}</button>`).join('');{const a=$('#nav [aria-current]');if(a&&a.scrollIntoView)try{a.scrollIntoView({inline:'center',block:'nearest'})}catch(e){}}}
+function renderNav(){renderTabbar();$('#nav').innerHTML=NAV.map(([k,l,i])=>`<button class="pill" data-go="${k}" ${k===ui.route?'aria-current="page"':''}>${k===ui.route?ic(i):''}${l}</button>`).join('');{const a=$('#nav [aria-current]');if(a&&a.scrollIntoView)try{a.scrollIntoView({inline:'center',block:'nearest'})}catch(e){}}}
 
 function paint(animate){
   $('#main').classList.toggle('anim',!!animate);
@@ -1074,16 +1377,20 @@ function mascotCenter(on){
   else{m.classList.remove('center');$('#bubble').textContent='Need a hand? Ask me'}
 }
 function go(r,instant){
+  const changed=ui.route!==r;
   ui.route=r;if(location.hash!=='#'+r)history.replaceState(null,'','#'+r);
   renderNav();$('#bellpop').hidden=true;
-  const main=$('#main');
-  if(instant||reduce){paint(true);return}
-  main.classList.add('loading');mascotCenter(true);
-  clearTimeout(navT);navT=setTimeout(()=>{try{paint(true)}catch(e){main.innerHTML='<div class="card"><h3>Something went wrong opening this page</h3><p class="sub">'+String(e&&e.message||e).replace(/</g,'&lt;')+' · '+String(e&&e.stack||'').split('\n').slice(1,3).join(' ').replace(/</g,'&lt;').trim()+'</p><button class="btn" id="resetdev">Reset this device and reload</button></div>';const rb=$('#resetdev');if(rb)rb.onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem('codear-wiped2:'+KEY)}catch(x){}location.reload()}}main.classList.remove('loading');mascotCenter(false)},650);
+  const main=$('#main');clearTimeout(navT);main.classList.remove('loading');mascotCenter(false);
+  /* paint straight away: pages render in a few ms, so no loading pause between tabs */
+  try{paint(true)}catch(e){main.innerHTML='<div class="card"><h3>Something went wrong opening this page</h3><p class="sub">'+String(e&&e.message||e).replace(/</g,'&lt;')+' · '+String(e&&e.stack||'').split('\n').slice(1,3).join(' ').replace(/</g,'&lt;').trim()+'</p><button class="btn" id="resetdev">Reset this device and reload</button></div>';const rb=$('#resetdev');if(rb)rb.onclick=()=>{try{localStorage.removeItem(KEY);localStorage.removeItem('pairwise-wiped2:'+KEY)}catch(x){}location.reload()}}
+  if(changed&&!instant)scrollTo(0,0);
 }
 const refresh=()=>{const y=scrollY;applyFresh();paint(false);scrollTo(0,y)};
 
 /* ---------- modals ---------- */
+/* --kb = height the on-screen keyboard covers, so bottom sheets sit above it */
+if(window.visualViewport){const vv=visualViewport,kb=()=>document.documentElement.style.setProperty('--kb',Math.max(0,innerHeight-vv.height-vv.offsetTop)+'px');vv.addEventListener('resize',kb);vv.addEventListener('scroll',kb)}
+document.addEventListener('focusin',e=>{const m=e.target.closest&&e.target.closest('.modal');if(m&&matchMedia('(max-width:767.98px), (pointer:coarse)').matches)setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),300)});
 function modal(html){const r=$('#modalroot');r.innerHTML=`<div class="modal-bg" data-act="mclose"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`}
 const closeModal=()=>$('#modalroot').innerHTML='';
 
@@ -1111,10 +1418,43 @@ const AI={turns:[],busy:false,ctl:null,off:false,sample:undefined,btn:''};
 const QUICK_AI=['How are we doing this month?','Are we splitting costs fairly?','Plan our next apartment purchases','How do we handle rising food prices?'];
 async function getSample(){
   if(AI.sample!==undefined)return AI.sample;
-  try{AI.sample=(window.claude&&claude.use)?await claude.use('sample'):null}catch(e){AI.sample=null}
+  try{
+    if(window.claude&&claude.use)AI.sample=await claude.use('sample');
+    else if(SB){const r=await fetch(CLEO_URL,{cache:'no-store'});AI.sample=r.ok&&(await r.json()).ai?cleoSample:null}
+    else AI.sample=null;
+  }catch(e){AI.sample=null}
   return AI.sample;
 }
-const AI_RULES=`You are Cleo, the money assistant inside a household budgeting app used by a household setting up their first apartment together in Guyana. Answer using the DATA below: these are the numbers currently in their app. The household figures are currently sample data used while the app is being built. Use them as if they were real, and if asked where they come from, say they are sample numbers.
+/* Netlify: Cleo's answers come from netlify/functions/cleo.mjs, which checks the Supabase login and calls
+   Claude with the server's API key. Same shape as the claude.ai `sample` capability: (messages, {signal,onText}). */
+const CLEO_URL='/api/cleo';
+async function cleoSample(messages,o={}){
+  const fail=(code,text)=>Object.assign(new Error(code),{code,text:text||undefined});
+  let tok=null;try{tok=(await SB.auth.getSession()).data.session.access_token}catch(e){}
+  if(!tok)throw fail('session_expired');
+  let res;
+  try{res=await fetch(CLEO_URL,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+tok},body:JSON.stringify({messages}),signal:o.signal})}
+  catch(e){throw fail(o.signal&&o.signal.aborted?'cancelled':'network')}
+  if(!res.ok||!res.body){let c=res.status===404?'not_declared':'error';try{c=(await res.json()).code||c}catch(_){}throw fail(c)}
+  const rd=res.body.getReader(),dec=new TextDecoder();let buf='',text='',end=null;
+  try{
+    for(;;){
+      const {value,done}=await rd.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});let i;
+      while((i=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,i);buf=buf.slice(i+1);if(!line)continue;
+        let ev;try{ev=JSON.parse(line)}catch(_){continue}
+        if(typeof ev.t==='string'){text+=ev.t;if(o.onText)o.onText({text})}
+        else if(ev.error)throw fail(ev.error,text);
+        else if(ev.done)end=ev;
+      }
+    }
+  }catch(e){if(e&&e.code)throw e;throw fail(o.signal&&o.signal.aborted?'cancelled':'error',text)}
+  if(!end)throw fail('error',text);
+  if(end.stop==='refusal')throw fail('refused',text);
+  return {text,truncated:end.stop==='max_tokens'};
+}
+const AI_RULES=`You are Cleo, the money assistant inside a household budgeting app used by a household setting up their first apartment together in Guyana. Answer using the DATA below: these are the numbers currently in their app. These are the household's real figures; if something is 0 or empty, they have not entered it yet.
 
 All amounts are Guyanese dollars (G$) unless marked otherwise.
 
@@ -1179,7 +1519,7 @@ async function ask(q){
     if(!part)AI.turns.pop();else AI.turns.push({role:'assistant',content:part});
     if(code==='cancelled'){if(bub)bub.textContent=(part||bub.textContent)+' (stopped)';else ty.remove()}
     else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(code)){AI.off=true;if(bub)bub.remove();$('#aihint').hidden=true;basic('AI is not available here, so I will answer from the basics.')}
-    else{const msg=code==='rate_limited'?'I have hit a usage limit for now. Try again in a little while.':code==='session_expired'?'Please sign in to Claude again, then ask me once more.':code==='refused'?'I cannot help with that one. Try asking it a different way.':'Something went wrong on my side. Try asking again.';
+    else{const msg=code==='rate_limited'?'I have hit a usage limit for now. Try again in a little while.':code==='session_expired'?(SB?'Please sign out and log in again, then ask me once more.':'Please sign in to Claude again, then ask me once more.'):code==='refused'?'I cannot help with that one. Try asking it a different way.':'Something went wrong on my side. Try asking again.';
       if(bub&&part){bub.textContent=part+' (interrupted)'}else{if(bub)bub.remove();ty.remove();addMsg(msg,'bot')}}
   }finally{aiBusy(false);AI.ctl=null}
 }
@@ -1212,6 +1552,12 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-jedit]');if(el){ui.jedit=el.dataset.jedit||null;ui.jdel=null;refresh();return}
   el=t.closest('[data-jdel]');if(el){ui.jdel=el.dataset.jdel;refresh();return}
   el=t.closest('[data-jdelgo]');if(el){const id=el.dataset.jdelgo;(async()=>{for(const m of jMoves().filter(m=>m.plan===id)){const {id:mid,...rest}=m;await jWrite('moves',mid,{...rest,plan:''})}await jWrite('plans',id,null);ui.jedit=null;ui.jdel=null;refresh();toast('Plan deleted')})();return}
+  el=t.closest('[data-hh]');if(el){const a=el.dataset.hh;
+    if(a==='create')hhAction('create');
+    else if(a==='leave'||a==='leave-no'){ui.hhleave=a==='leave';refresh()}
+    else if(a==='leave-go')hhAction('leave');
+    else if(a==='copy'){const c=fmtCode(J.code);(navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast('Invite code copied'),()=>toast('Your invite code is '+c))}
+    return}
   el=t.closest('[data-jskip]');if(el){const a=+ldj(JSKIP,0)||0;if(el.dataset.jskip==='add'&&a>0)jWrite('moves',jid('m'),{plan:'',amt:a,who:jMine(),note:'Opening balance from this phone',ts:Date.now(),from:''});try{localStorage.removeItem(JSKIP)}catch(e){}refresh();return}
   el=t.closest('[data-jmdel]');if(el){jDelMove(el.dataset.jmdel);refresh();toast('Entry removed');return}
   el=t.closest('[data-cyc]');if(el){const id=+el.dataset.cyc;ui.cycOpen=ui.cycOpen===id?null:id;refresh();return}
@@ -1234,7 +1580,12 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-chk]');if(el){ui.chk=el.dataset.chk;refresh();return}
   el=t.closest('[data-tick]');if(el){const cl=curList(),r=cl.items.find(x=>x.id==el.dataset.tick),was=r.s;r.s=(r.s==='Purchased'||r.s==='Already Have')?'Need to Buy':'Purchased';if(isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);save();refresh();if(isG(cl)&&r.s==='Purchased'&&!cl.items.some(x=>x.s==='Need to Buy'))toast('Cart complete. Nice shopping!');return}
   el=t.closest('[data-del]');if(el){(()=>{const cl=curList();cl.items=cl.items.filter(x=>x.id!=el.dataset.del)})();save();refresh();return}
-  el=t.closest('[data-go]');if(el){go(el.dataset.go);return}
+  el=t.closest('[data-cday]');if(el){calDraft();ui.cal.sel=el.dataset.cday;if(ui.remDraft)delete ui.remDraft.d;refresh();return}
+  el=t.closest('[data-cmove]');if(el){calDraft();const C=ui.cal,d=pd(C.sel),n=+el.dataset.cmove;if(C.view==='week')C.sel=iso(addD(d,7*n));else{const nm=new Date(d.getFullYear(),d.getMonth()+n,1),t=new Date();C.sel=iso(nm.getFullYear()===t.getFullYear()&&nm.getMonth()===t.getMonth()?t:nm)}if(ui.remDraft)delete ui.remDraft.d;refresh();return}
+  el=t.closest('[data-cview]');if(el){ui.cal.view=el.dataset.cview;calRefresh();return}
+  el=t.closest('[data-remtog]');if(el){const r=(S.rem||[]).find(x=>x.id==el.dataset.remtog);if(r){r.on=!r.on;save();calRefresh();toast(r.on?`You will be reminded ${beforeLbl(r.before).toLowerCase()}`:`Reminder off for ${r.t}`)}return}
+  el=t.closest('[data-remdel]');if(el){const r=(S.rem||[]).find(x=>x.id==el.dataset.remdel);if(r){S.rem=S.rem.filter(x=>x!==r);save();calRefresh();toast(`${r.t} deleted${r.rep&&r.rep!=='none'?', with every repeat':''}`)}return}
+  el=t.closest('[data-go]');if(el){if(el.closest('#modalroot'))closeModal();go(el.dataset.go);return}
   el=t.closest('[data-tab]');if(el){ui.tab=el.dataset.tab;refresh();return}
   el=t.closest('[data-range]');if(el){ui.range=+el.dataset.range;refresh();return}
   el=t.closest('[data-pick]');if(el){const id=+el.dataset.pick,cur=selCard();
@@ -1247,11 +1598,14 @@ document.addEventListener('click',e=>{
   const a=el.dataset.act;
   if(a==='goals'){if(t.closest('[data-act="addgoal"]'))return;ui.goalsOpen=!ui.goalsOpen;refresh();return}
   if(a==='addgoal'){e.stopPropagation();ui.goalsOpen=true;refresh();setTimeout(()=>$('#gname')?.focus(),50);return}
-  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=Object.entries(S.budget).filter(([k,x])=>!x.fixed&&x.limit>0).sort((a,b)=>b[1].spent/b[1].limit-a[1].spent/a[1].limit)[0],inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>${esc(en[0])} is at ${Math.round(en[1].spent/en[1].limit*100)}% of its limit</b><span>${fmt(en[1].limit-en[1].spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
-  if(a==='theme'){const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);S.theme=nx;save();return}
+  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=Object.entries(S.budget).filter(([k,x])=>!x.fixed&&x.limit>0).sort((a,b)=>b[1].spent/b[1].limit-a[1].spent/a[1].limit)[0],inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${remAlerts().map(x=>`<div class="n"><span class="ico">${ic(CAL_KINDS[x.r.kind||'rem'][1])}</span><div><b>${esc(x.r.t)}</b><span>${remWhen(x)}${x.r.amt?' · '+fmt0(x.r.amt):''}</span></div></div>`).join('')}${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>${esc(en[0])} is at ${Math.round(en[1].spent/en[1].limit*100)}% of its limit</b><span>${fmt(en[1].limit-en[1].spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
+  if(a==='theme'){const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);S.theme=nx;save();try{localStorage.setItem(DEV_THEME,nx)}catch(e){}return}
+  if(a==='more'){openMore();return}
+  if(a==='addrem'){const f=$('#rm-t');if(f){f.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});f.focus({preventScroll:true})}return}
+  if(a==='payday'){modal(`<h3>Payday</h3><div class="hint">The day of the month your salary arrives. The calendar shows your monthly income of ${fmt0(tgIncome())} on this day.</div><form id="paydayform" class="form"><label class="f">Day of the month<input class="in" id="pd-d" type="number" inputmode="decimal" min="1" max="31" step="1" required value="${payDay()}"></label><button class="btn dark" type="submit">Save</button></form>`);return}
   if(a==='lang'){toast('More languages are coming soon');return}
   if(a==='avatar'){const p=$('#userpop');p.hidden=!p.hidden;$('#bellpop').hidden=true;p.innerHTML=`<h4>${esc((prof()&&prof().name)||(user&&user.name)||'Guest')}</h4><div class="n"><span class="ico">${ic('mail')}</span><div><b style="word-break:break-all">${esc((user&&user.email)||'')}</b><span>Signed in on this device</span></div></div><button class="btn sm dark" style="width:100%;justify-content:center;margin-top:6px" data-act="profile">Profile settings</button><button class="btn sm" style="width:100%;justify-content:center;margin-top:6px" data-act="logout">Sign out</button>`;return}
-  if(a==='logout'){try{localStorage.removeItem(SKEY)}catch(e){}user=null;$('#qafab').hidden=true;$('#userpop').hidden=true;$('#bellpop').hidden=true;openChat(false);$('#msgs').innerHTML='';showAuth('login');return}
+  if(a==='logout'){try{localStorage.removeItem(SKEY)}catch(e){}if(SB){if(cloudT)cloudPush(true);cloud=null;jStop();SB.auth.signOut().catch(()=>{})}user=null;$('#qafab').hidden=true;$('#userpop').hidden=true;$('#bellpop').hidden=true;openChat(false);$('#msgs').innerHTML='';showAuth('login');return}
   if(a==='plantoggle'){ui.planOpen=ui.planOpen===false;refresh();return}
   if(a==='planguess'){let n=0;S.check.forEach(x=>{if(x.s==='Need to Buy'&&!(+x.c>0)&&guessP(x)){x.c=guessP(x);n++}});save();refresh();toast(`${n} rough estimates filled in. Replace them with real prices as you find them.`);return}
   if(a==='planall'){ui.planAll=!ui.planAll;refresh();return}
@@ -1271,6 +1625,7 @@ document.addEventListener('click',e=>{
   if(a==='towallet'){go('wallet');return}
   if(a==='tobudget'){go('budget');return}
   if(a==='qa'){openQuick('expense');return}
+  if(a==='addcontact'){ui.addc=!ui.addc;keepForm(refresh);if(ui.addc)$('#addc-n')?.focus();return}
   if(a==='qa-bal'){openQuick('balance');return}
   if(a==='newcycle'){ui.cc=!ui.cc;refresh();return}
   if(a==='newcycle-yes'){snapCycle();S.incomeExtra=0;Object.values(S.budget).forEach(b=>b.spent=0);S.cycle={start:iso(new Date()),id:S.cycle.id+1};ui.cc=false;const pay=+S.income||0;if(pay>0){S.acc.GYD=+(S.acc.GYD+pay).toFixed(2);S.paidCycle=S.cycle.id}save();refresh();toast(pay>0?`New cycle started. ${fmt(pay,'G$')} salary added to your Salary account`:'New 30-day cycle started');return}
@@ -1279,8 +1634,8 @@ document.addEventListener('click',e=>{
   if(a==='mclose'){if(t.classList.contains('modal-bg')||t.closest('[data-x]'))closeModal();return}
   if(a==='mclose2'){closeModal();return}
   if(a==='receive'){ui.dir='in';go('transfer');return}
-  if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Writes a short message asking someone to pay you. Paste it into WhatsApp, SMS or email.</div><form class="form" id="reqform"><label class="f">From<select class="in" id="rwho">${S.contacts.map(c=>`<option>${esc(c.n)}</option>`).join('')}</select></label><label class="f">Amount (G$)<input class="in" id="ramt" type="number" min="0.01" step="0.01" placeholder="0.00" required></label><label class="f">What for (optional)<input class="in" id="rfor" maxlength="60" placeholder="e.g. Your half of the light bill"></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('copy')}Copy request message</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
-  if(a==='addcard'){modal(`<h3>Add a card</h3><div class="hint">For example Savings or a Joint account. Only the main account is used by the budget. Joint cards are the only ones your partner can see.</div><form id="newcardform" class="form" style="margin-top:12px"><label class="f">Account name<input class="in" id="nc-n" maxlength="30" required placeholder="e.g. Savings" autofocus></label><label class="f">Balance (G$)<input class="in" id="nc-b" type="number" min="0" step="any" value="0"></label><label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="nc-j" style="width:auto;margin:0"> Joint card, shared with my partner</label><button class="btn dark" type="submit" style="margin-top:10px;width:100%">Add card</button></form>`);return}
+  if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Writes a short message asking someone to pay you. Paste it into WhatsApp, SMS or email.</div><form class="form" id="reqform"><label class="f">From<input class="in" id="rwho" list="rwho-l" maxlength="30" required autocomplete="off" placeholder="Name"><datalist id="rwho-l">${S.contacts.map(c=>`<option value="${esc(c.n)}">`).join('')}</datalist></label><label class="f">Amount (G$)<input class="in" id="ramt" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required></label><label class="f">What for (optional)<input class="in" id="rfor" maxlength="60" placeholder="e.g. Your half of the light bill"></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('copy')}Copy request message</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
+  if(a==='addcard'){modal(`<h3>Add a card</h3><div class="hint">For example Savings or a Joint account. Only the main account is used by the budget. Joint cards are the only ones your partner can see.</div><form id="newcardform" class="form" style="margin-top:12px"><label class="f">Account name<input class="in" id="nc-n" maxlength="30" required placeholder="e.g. Savings" autofocus></label><label class="f">Balance (G$)<input class="in" id="nc-b" type="number" inputmode="decimal" min="0" step="any" value="0"></label><label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="nc-j" style="width:auto;margin:0"> Joint card, shared with my partner</label><button class="btn dark" type="submit" style="margin-top:10px;width:100%">Add card</button></form>`);return}
   if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(c.joint&&jTotal()){toast('This card shows your Joint plans. Take the money out there first');return}if(goalCard()&&goalCard().id===c.id&&goalsHeld()>0){toast('This card holds your savings goals. Take the money out of the goals first');return}if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
   if(a==='rates'){toast(`Live rates are not connected. Using fixed rates: US$1 = G$209, €1 = US$${S.rate.EUR}, £1 = US$${S.rate.GBP}`);return}
 });
@@ -1314,6 +1669,10 @@ document.addEventListener('dragend',()=>{dragSec=null;$$('.chk.dragging,.chk.dro
 document.addEventListener('drop',e=>{if(dragSec==null)return;const c=e.target.closest('.chk[data-sec]');if(!c)return;e.preventDefault();const cl=curList(),ar=secAreas(cl),i=ar.indexOf(dragSec),j=ar.indexOf(c.dataset.sec);dragSec=null;if(i<0||j<0||i===j){refresh();return}ar.splice(j,0,ar.splice(i,1)[0]);cl.groups=ar;save();refresh()});
 document.addEventListener('submit',e=>{
   const f=e.target;e.preventDefault();
+  if(f.id==='remform'){const t=$('#rm-t').value.trim(),d=$('#rm-d').value;if(!t||!d)return;
+    const r={id:Date.now(),t,kind:$('#rm-k').value,date:d,time:$('#rm-tm').value||'',rep:$('#rm-r').value,before:+$('#rm-b').value,on:true,amt:Math.max(0,+$('#rm-a').value||0)};
+    (S.rem=S.rem||[]).push(r);ui.remDraft=null;ui.cal.sel=d;save();refresh();toast(`${t} saved for ${dfmt(pd(d))}`);return}
+  if(f.id==='paydayform'){const n=Math.min(31,Math.max(1,+$('#pd-d').value|0));S.payDay=n;save();closeModal();refresh();toast(`Payday set to the ${ord(n)} of each month`);return}
   if(f.id==='chatform'){if(AI.busy){AI.ctl&&AI.ctl.abort();return}const i=$('#chatin'),v=i.value.trim();if(v){i.value='';ask(v)}return}
   if(f.id==='quickform'){const v=f.querySelector('input').value.trim();if(!v)return;const cl=curList(),r=addGro(cl,parseQuick(v));save();refresh();toast(r.add?`${r.add} item${r.add===1?'':'s'} added${r.skip?`, ${r.skip} already on the list`:''}`:'Already on the list');setTimeout(()=>$('#quickform input')?.focus(),30);return}
   if(f.id==='finform'){const paid=Math.max(0,+$('#paid').value||0),cl=curList(),got=cl.items.filter(x=>x.s==='Purchased');if(!paid||!got.length)return;const est=sum(got.map(x=>+x.c||0)),bamt=paid;
@@ -1326,8 +1685,13 @@ document.addEventListener('submit',e=>{
   if(f.id==='secform'){const v=f.querySelector('input').value.trim(),cl=curList();if(v){const ex=[...cl.groups,...cl.items.map(x=>x.a)];if(ex.includes(v)){toast('That section already exists');return}cl.groups.push(v);save();refresh();toast('Section added')}return}
   if(f.dataset.area){const v=f.querySelector('input').value.trim();if(v){curList().items.push({id:Date.now(),a:f.dataset.area,i:v,s:'Need to Buy',p:'Medium',c:null,n:'',q:''});save();refresh();toast('Item added')}return}
   if(f.id==='goalform'){S.goals.push({id:Date.now(),n:$('#gname').value.trim(),t:+$('#gtarget').value,s:0});save();refresh();toast('Goal added');return}
+  if(f.id==='addcform'){const n=$('#addc-n').value.trim().replace(/\s+/g,' ');if(!n)return;
+    const ex=S.contacts.findIndex(x=>x.n.toLowerCase()===n.toLowerCase());
+    if(ex<0){S.contacts.push({n,c:['#e8622a','#3c52d9','#2f9e6a','#8a5cf5','#c8353f','#d4a017'][S.contacts.length%6]});save()}
+    ui.contact=ex<0?S.contacts.length-1:ex;ui.addc=false;keepForm(refresh);toast(ex<0?n+' added':n+' is already in your list');return}
   if(f.id==='xferform'){
-    const acct=$('#xfrom').value,amt=+$('#xamt').value,c=S.contacts[ui.contact],inn=ui.dir==='in',ref=($('#xref')?.value||'').trim(),note=($('#xnote')?.value||'').trim(),sym=SYMS[acct];
+    const acct=$('#xfrom').value,amt=+$('#xamt').value,c=S.contacts[ui.contact]||S.contacts[0],inn=ui.dir==='in',ref=($('#xref')?.value||'').trim(),note=($('#xnote')?.value||'').trim(),sym=SYMS[acct];
+    if(!c){toast('Add the person first');$('#addc-n')?.focus();return}
     if(!(amt>0))return;
     if(!inn&&amt>S.acc[acct]){toast(`Not enough ${acct}. Available: ${fmt(S.acc[acct],sym)}`);return}
     const base=amt*S.rate[acct]*GY;
@@ -1353,6 +1717,7 @@ document.addEventListener('submit',e=>{
     const er=goalMoney(i,a,out,$('#gm-n').value.trim(),fromMain);if(er){toast(er);return}
     save();refresh();openGoal(i);toast(`${fmt(a)} ${out?'taken out of':'added to'} ${g.n}`);return}
   if(f.id==='jnew'){const n=$('#jn-n').value.trim(),t=+$('#jn-t').value,m=Math.max(0,+$('#jn-m').value||0);if(!n||!(t>0))return;const id=jid('p');ui.jplan=id;jWrite('plans',id,{name:n,target:t,monthly:m||null,who:jMine(),ts:Date.now()});refresh();toast(`${n} created`);return}
+  if(f.id==='hhjoin'){const c=$('#hh-c').value.trim();if(c)hhAction('join',c);return}
   if(f.id==='jpedit'){const id=f.dataset.id,p=J.plans[id],n=$('#je-n').value.trim(),t=+$('#je-t').value;if(!p||!n||!(t>0))return;jWrite('plans',id,{...p,name:n,target:t,monthly:Math.max(0,+$('#je-m').value||0)||null});ui.jedit=null;refresh();toast('Plan saved');return}
   if(f.id==='jform'){const pid=$('#jf-p').value,a=+$('#jf-a').value,out=e.submitter&&e.submitter.value==='out',fromMain=$('#jf-f').checked;if(!(a>0))return;
     const have=jSaved(pid);if(out&&a>have+0.005){toast(`${pid?jPlanName(pid):'Not assigned'} only holds ${fmt(have)}`);return}
@@ -1364,7 +1729,7 @@ document.addEventListener('submit',e=>{
   if(f.id==='expform'){
     const k=$('#ecat').value,amt=+$('#eamt').value,d=$('#edesc').value.trim();
     addExpense(k,amt,d,$('#epaid')?.value,$('#efor')?.value);refresh();toast(`${fmt(amt,'G$')} added to ${k}`);return}
-  if(f.id==='reqform'){const who=$('#rwho').value,amt=+$('#ramt').value,why=$('#rfor').value.trim();if(!(amt>0))return;
+  if(f.id==='reqform'){const who=$('#rwho').value.trim(),amt=+$('#ramt').value,why=$('#rfor').value.trim();if(!(amt>0))return;
     const txt=`Hi ${who.split(' ')[0]}, could you send me ${fmt(amt,'G$')}${why?' for '+why:''}? Thanks, ${first()}`;
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>{closeModal();toast('Request message copied. Paste it to send.')},()=>toast('Copy blocked. Try again or type it yourself.'));return}
 });
@@ -1373,24 +1738,47 @@ $('#quick').addEventListener('click',e=>{const b=e.target.closest('button');if(b
 $('#mascot').addEventListener('click',()=>openChat(true));
 $('#mascot').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openChat(true)}});
 document.addEventListener('keydown',e=>{const g=e.target.closest&&e.target.closest('[data-goal]');if(g&&(e.key==='Enter'||e.key===' ')){e.preventDefault();ui.gdel=null;ui.gcPick=false;openGoal(+g.dataset.goal);return}if(e.key==='Escape'){closeModal();openChat(false);$('#bellpop').hidden=true}});
+/* chart details: hover on desktop, tap on phones (tap again or elsewhere to hide) */
+function chartTip(g){const w=g.closest('.chart-wrap'),tip=$('.tip',w);$$('.bar-g.on',w).forEach(x=>x.classList.remove('on'));g.classList.add('on');tip.textContent=g.dataset.tip;tip.style.left=g.dataset.tx+'%';tip.style.top=g.dataset.ty+'%';tip.style.opacity=1;
+  /* keep the bubble inside the chart near the edges */
+  const W=w.clientWidth,tw=tip.offsetWidth,x=+g.dataset.tx/100*W;tip.style.left=Math.min(W-tw/2,Math.max(tw/2,x))+'px'}
+function chartTipOff(w){(w?[w]:$$('.chart-wrap')).forEach(x=>{const t=$('.tip',x);if(t)t.style.opacity=0;$$('.bar-g.on',x).forEach(g=>g.classList.remove('on'))})}
+document.addEventListener('click',e=>{const g=e.target.closest&&e.target.closest('.bar-g');if(g){if(g.classList.contains('on'))chartTipOff(g.closest('.chart-wrap'));else chartTip(g)}else if(!e.target.closest||!e.target.closest('.chart-wrap'))chartTipOff()});
 document.addEventListener('mouseover',e=>{const g=e.target.closest('.bar-g');if(!g)return;const w=g.closest('.chart-wrap'),tip=$('.tip',w);tip.textContent=g.dataset.tip;tip.style.left=g.dataset.tx+'%';tip.style.top=g.dataset.ty+'%';tip.style.opacity=1});
 document.addEventListener('mouseout',e=>{const g=e.target.closest('.bar-g');if(g)$('.tip',g.closest('.chart-wrap')).style.opacity=0});
 document.addEventListener('click',e=>{if(!e.target.closest('#bellpop')&&!e.target.closest('[data-act="bell"]'))$('#bellpop').hidden=true;if(!e.target.closest('#userpop')&&!e.target.closest('[data-act="avatar"]'))$('#userpop').hidden=true},true);
 addEventListener('hashchange',()=>{const r=location.hash.slice(1);if(VIEWS[r]&&r!==ui.route)go(r)});
 
+/* phone: tuck the floating + Add and Cleo away while scrolling down or typing, so they never cover what you are reading */
+(function(){
+  const mq=matchMedia('(max-width:767.98px)'),B=document.body;let lastY=scrollY,typing=false,tick=false;
+  const field=e=>e&&e.matches&&e.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select,[contenteditable]')&&!e.closest('.modal,.chat');
+  const set=()=>{tick=false;const y=scrollY,d=y-lastY,atEnd=innerHeight+y>=document.documentElement.scrollHeight-60;let away=B.classList.contains('fl-away');
+    if(!mq.matches)away=false;
+    else if(typing)away=true;
+    else if(y<=80||atEnd||d<-4)away=false;
+    else if(d>4)away=true;
+    if(Math.abs(d)>4||y<=80)lastY=y;
+    B.classList.toggle('fl-away',away)};
+  addEventListener('scroll',()=>{if(!tick){tick=true;requestAnimationFrame(set)}},{passive:true});
+  document.addEventListener('focusin',e=>{if(field(e.target)){typing=true;set()}});
+  document.addEventListener('focusout',e=>{if(field(e.target)){typing=false;setTimeout(set,0)}});
+  mq.addEventListener&&mq.addEventListener('change',set);
+})();
 /* ---------- boot ---------- */
 /* ---------- auth ---------- */
-const SKEY='codear-session',UKEY='codear-users';
+const SKEY='pairwise-session',UKEY='pairwise-users';
 const ldj=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}};
 const svj=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function hashPw(email,pw){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(email.toLowerCase()+'|'+pw));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){return 'x'+btoa(unescape(encodeURIComponent(email.toLowerCase()+pw)))}}
 let user=ldj(SKEY,null),authMode='login';
-try{if(!localStorage.getItem('codear-clean1')){localStorage.setItem('codear-clean1','1');if(user&&user.email==='demo@codear.app'){user=null;localStorage.removeItem(SKEY)}}}catch(e){}
+try{if(!localStorage.getItem('pairwise-clean1')){localStorage.setItem('pairwise-clean1','1');if(user&&user.email==='demo@codear.app'){user=null;localStorage.removeItem(SKEY)}}}catch(e){}
 const first=()=>((user&&user.name)||'there').split(' ')[0];
 const AUTH_TXT={
   login:{t:'Welcome back',s:'Log in to see your balances, budgets and checklist.',b:'Log in',hi:'Hello! Welcome back'},
-  signup:{t:'Create your account',s:'Start tracking your money in under a minute.',b:'Create account',hi:'Hi there! Nice to meet you'}
+  signup:{t:'Create your account',s:'Start tracking your money in under a minute.',b:'Create account',hi:'Hi there! Nice to meet you'},
+  reset:{t:'Choose a new password',s:'Enter a new password for your account.',b:'Save password',hi:'Almost there!'}
 };
 function lmSvg(){return `<svg class="lm-svg" viewBox="0 0 120 130" aria-hidden="true">
   <ellipse cx="60" cy="124" rx="28" ry="5" fill="rgba(0,0,0,.14)"/>
@@ -1410,28 +1798,27 @@ const fld=(i,id,label,type,icn,ph,ac,extra='')=>`<label class="af" style="--i:${
 function fieldsHTML(m){
   const T=AUTH_TXT[m];
   const btn=i=>`<button class="abtn" type="submit" style="--i:${i}"><span class="lbl">${T.b}</span><span class="spn"></span><svg class="ok" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg></button>`;
-  
-  const demo=i=>`<div class="demos" style="--i:${i};display:grid;gap:6px;margin-top:6px"><button type="button" class="ghostlnk" data-demo="m">Try the demo as Marcus (male)</button><button type="button" class="ghostlnk" data-demo="f">Try the demo as Nadia (female)</button></div>`;
+  if(m==='reset')return fld(0,'f-pw','New password','password','lock','At least 6 characters','new-password','<div class="pwm"><i id="pwm"></i></div>')+btn(1);
   if(m==='login')return fld(0,'f-email','Email','email','mail','you@example.com','email')+fld(1,'f-pw','Password','password','lock','Your password','current-password')
-    +`<div class="arow" style="--i:2"><label><input type="checkbox" id="f-rem" checked>Keep me signed in</label><button type="button" data-forgot>Forgot password?</button></div>`+btn(3)+demo(4);
+    +`<div class="arow" style="--i:2"><label><input type="checkbox" id="f-rem" checked>Keep me signed in</label><button type="button" data-forgot>Forgot password?</button></div>`+btn(3);
   return fld(0,'f-name','Full name','text','user','Your name','name')+fld(1,'f-email','Email','email','mail','you@example.com','email')
-    +fld(2,'f-pw','Password','password','lock','At least 6 characters','new-password','<div class="pwm"><i id="pwm"></i></div>')+btn(3)+demo(4);
+    +fld(2,'f-pw','Password','password','lock','At least 6 characters','new-password','<div class="pwm"><i id="pwm"></i></div>')+btn(3);
 }
 function authHTML(){
-  const T=AUTH_TXT[authMode],n=(S.check||[]).length;
+  const T=AUTH_TXT[authMode];
   return `<div class="stage"><div class="floor"></div>
     <div class="lm"><div class="lm-bubble">${T.hi}</div><div class="lm-run"><div class="lm-hop">${lmSvg()}</div></div></div>
     <div class="acard">
       <div class="promo"><div><h2>Your money, in one calm place.</h2><p>Track balances, budgets and your apartment checklist from a single dashboard.</p></div>
         <div class="pstat"><div class="p" style="--i:0"><span class="ico">${ic('wallet')}</span><div><b>All your balances</b>GYD, USD, EUR and GBP</div></div>
         <div class="p" style="--i:1"><span class="ico">${ic('pie')}</span><div><b>Smart budgets</b>Limits that warn you early</div></div>
-        <div class="p" style="--i:2"><span class="ico">${ic('check')}</span><div><b>Apartment checklist</b>${n} items across 6 rooms</div></div></div></div>
+        <div class="p" style="--i:2"><span class="ico">${ic('check')}</span><div><b>Apartment checklist</b>Everything to buy, room by room</div></div></div></div>
       <div class="aform">
-        <div class="brand"><div class="logo">C</div>codear</div>
-        <div class="atabs" data-mode="${authMode}" role="tablist"><i class="thumb"></i><button type="button" role="tab" data-am="login" aria-selected="${authMode==='login'}">Log in</button><button type="button" role="tab" data-am="signup" aria-selected="${authMode==='signup'}">Sign up</button></div>
+        <div class="brand">${MARK()}<span class="wm">Pair<b>wise</b></span></div>
+        ${authMode==='reset'?'':`<div class="atabs" data-mode="${authMode}" role="tablist"><i class="thumb"></i><button type="button" role="tab" data-am="login" aria-selected="${authMode==='login'}">Log in</button><button type="button" role="tab" data-am="signup" aria-selected="${authMode==='signup'}">Sign up</button></div>`}
         <h2 id="atitle" class="hd">${T.t}</h2><p class="sub hd" id="asub">${T.s}</p>
         <form id="authform" novalidate>${fieldsHTML(authMode)}</form>
-        <p class="anote">Demo app: accounts are saved only in this browser.</p>
+        <p class="anote">${SB?'Your account and budget are backed up, so you can sign in on any device.':'Accounts are saved in this browser.'}</p>
       </div></div></div>`;
 }
 function showAuth(mode){
@@ -1444,8 +1831,12 @@ function showAuth(mode){
     if(m){setMode(m.dataset.am);return}
     const eye=t.closest('[data-eye]');
     if(eye){const i=eye.closest('.ain').querySelector('input');i.type=i.type==='password'?'text':'password';lmShy(i.type==='password');i.focus();return}
-    const dm=t.closest('[data-demo]');if(dm){const D=DEMOS[dm.dataset.demo],all=ldj(PKEY,{});if(!all[D.email])all[D.email]={...D};svj(PKEY,all);try{localStorage.setItem('codear-pid',D.slot)}catch(e){}user={name:all[D.email].name,email:D.email};svj(SKEY,user);authSuccess();return}
-    if(t.closest('[data-forgot]')){toast('Password reset is not available in this demo');return}
+    if(t.closest('[data-forgot]')){
+      if(!SB){toast('Password reset is not available yet');return}
+      const em=($('#f-email')?.value||'').trim();
+      if(!/^\S+@\S+\.\S+$/.test(em)){authErr('f-email','Enter your email, then tap Forgot password.');return}
+      SB.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname}).then(({error})=>toast(error?sbErr(error):'Check your inbox for a link to reset your password'));
+      return}
   });
   a.addEventListener('submit',submitAuth);
   a.addEventListener('focusin',e=>{if(e.target.type==='password')lmShy(true)});
@@ -1475,11 +1866,33 @@ async function submitAuth(e){
   $$('.err',$('#authform')).forEach(x=>x.textContent='');$$('.af.bad').forEach(x=>x.classList.remove('bad'));
   let bad=false;const err=(id,m)=>{authErr(id,m);bad=true};
   if(authMode==='signup'&&name.length<2)err('f-name','Enter your name');
-  if(!/^\S+@\S+\.\S+$/.test(email))err('f-email','Enter a valid email address');
+  if(authMode!=='reset'&&!/^\S+@\S+\.\S+$/.test(email))err('f-email','Enter a valid email address');
   if(pw.length<6)err('f-pw','Use at least 6 characters');
   const fail=(id,m)=>{btn.classList.remove('is-load');authErr(id,m);replay($('.acard'),'shake')};
   if(bad){replay($('.acard'),'shake');return}
   btn.classList.add('is-load');
+  if(SB){
+    let res;
+    try{
+      if(authMode==='reset')[res]=await Promise.all([SB.auth.updateUser({password:pw}),wait(600)]);
+      else if(authMode==='signup')[res]=await Promise.all([SB.auth.signUp({email,password:pw,options:{data:{name},emailRedirectTo:location.origin+location.pathname}}),wait(700)]);
+      else [res]=await Promise.all([SB.auth.signInWithPassword({email,password:pw}),wait(700)]);
+    }catch(x){res={error:x}}
+    const {data,error}=res||{};
+    if(error){const m=sbErr(error);return fail(/email|account/i.test(m)&&!/password/i.test(m)?(authMode==='reset'?'f-pw':'f-email'):'f-pw',m)}
+    /* with email confirmation on, signing up an existing address returns a user with no identities */
+    if(authMode==='signup'&&data.user&&Array.isArray(data.user.identities)&&!data.user.identities.length)return fail('f-email','An account with this email already exists. Log in instead.');
+    if(authMode==='signup'&&!data.session){
+      btn.classList.remove('is-load');setMode('login');$('#f-email').value=email;
+      toast('Check your inbox and open the link to confirm your email, then log in');return;
+    }
+    const u=(data.session&&data.session.user)||data.user;if(!u)return fail('f-pw','Something went wrong. Try again.');
+    if(authMode==='reset')try{history.replaceState(null,'',location.pathname)}catch(_){}
+    user=sbUser(u);svj(SKEY,user);
+    try{if($('#f-rem')&&!$('#f-rem').checked)localStorage.setItem('pairwise-eph','1');else localStorage.removeItem('pairwise-eph');sessionStorage.setItem('pairwise-alive','1')}catch(_){}
+    {const all=ldj(PKEY,{}),k=(user.email||'').toLowerCase();if(!all[k]){all[k]={name:user.name,email:user.email,gender:'',phone:'',city:'',color:'#e8622a'};svj(PKEY,all)}}
+    authSuccess();return;
+  }
   const users=ldj(UKEY,{}),key=email.toLowerCase();
   const [h]=await Promise.all([hashPw(email,pw),wait(950)]);
   if(authMode==='signup'){
@@ -1515,30 +1928,52 @@ function toGYD(){
   S.incomeExtra=g(S.incomeExtra||0);S.units='gyd';return true;
 }
 function prepState(){
-  try{if(!localStorage.getItem('codear-wiped2:'+KEY)){wipeAll();localStorage.setItem('codear-wiped2:'+KEY,'1');save()}}catch(_){}
+  try{if(!localStorage.getItem('pairwise-wiped2:'+KEY)){wipeAll();localStorage.setItem('pairwise-wiped2:'+KEY,'1');save()}}catch(_){}
   if(S.sv!==SAMPLE_V){Object.assign(S,sampleData());save()}
   if(toGYD())save();
   const oldBills=(S.bills||[]).some(b=>!b.start)||(S.goals||[]).some(g=>!g.id);
   ensureTg();if(oldBills)save();
   S.fav=S.fav||{};S.prices=S.prices||{};S.hist=S.hist||{};
-  if(!S.check){S.check=seedCheck();save()}
+  if(!S.check){S.check=seedCheck();if(!S.aptGroups)S.aptGroups=Object.keys(AREAIC);save()}
   if(!S.lists){S.lists=[makeList('groceries')];save()}
+  if(!S.rem){S.rem=[];save()}
   if(!S.cycle){const d=new Date();d.setDate(d.getDate()-25);S.cycle={start:iso(d),id:1};save()}
-  if(Array.isArray(S.cards)&&S.cards.length&&!S.cards.some(c=>c.main)){const c0=S.cards[0];c0.main=true;if(/^codear/i.test(c0.name||''))c0.name='Salary account';save()}
-  if(S.theme)document.documentElement.setAttribute('data-theme',S.theme);
+  if(Array.isArray(S.cards)&&S.cards.length&&!S.cards.some(c=>c.main)){const c0=S.cards[0];c0.main=true;if(/^(codear|pairwise)/i.test(c0.name||''))c0.name='Salary account';save()}
+  applyTheme(!!user);
   applyFresh();
 }
 prepState();
 function startApp(){
-  jLoad();jConnect();
+  jStop();jKeys();jLoad();jConnect();
   cloudSync();
   paintAvatar();const autoPaid=payDueBills();const fb=$('#qafab');if(fb)fb.hidden=false;
   if(autoPaid.length)setTimeout(()=>toast(`Autopay: ${listAnd(autoPaid.map(b=>b.name))} recorded as paid`),1600);
+  {const all=remAlerts(),seen=S.remSeen||{},al=all.filter(x=>!seen[x.r.id+':'+x.d]);if(al.length){S.remSeen={};all.forEach(x=>S.remSeen[x.r.id+':'+x.d]=1);save();const w=remWhen(al[0]).replace(/^(Today|Tomorrow)/,m=>m.toLowerCase());setTimeout(()=>toast(`Reminder: ${al[0].r.t}, ${w}${al.length>1?` (+${al.length-1} more in the bell)`:''}`),autoPaid.length?4200:2600)}}
   const start=location.hash.slice(1);
   ui.route=VIEWS[start]?start:'dashboard';
   renderNav();
   $('#main').classList.add('loading');
   requestAnimationFrame(()=>{mascotCenter(true);setTimeout(()=>{paint(true);ui.ready=true;$('#main').classList.remove('loading');mascotCenter(false)},reduce?0:900)});
 }
-if(user)startApp();else{$('#main').classList.add('loading');showAuth('login')}
+if(SB){
+  /* the Supabase session decides who is signed in; the cached `user` is only used to paint the theme early */
+  $('#main').classList.add('loading');
+  (async()=>{
+    let s=null;try{s=(await SB.auth.getSession()).data.session}catch(e){}
+    let alive=false;try{alive=!!sessionStorage.getItem('pairwise-alive')}catch(e){}
+    if(s&&!RECOVERY&&!alive&&ldj('pairwise-eph',null)){try{await SB.auth.signOut()}catch(e){}s=null} // "Keep me signed in" was off
+    try{sessionStorage.setItem('pairwise-alive','1')}catch(e){}
+    if(s&&RECOVERY){showAuth('reset');return}
+    if(!s){user=null;try{localStorage.removeItem(SKEY)}catch(e){}showAuth('login');return}
+    const was=((user&&user.email)||'').toLowerCase();
+    user=sbUser(s.user);svj(SKEY,user);
+    if((user.email||'').toLowerCase()!==was){loadState((user.email||'').toLowerCase());prepState()}
+    startApp();
+  })();
+  SB.auth.onAuthStateChange(ev=>{
+    if(ev==='PASSWORD_RECOVERY'&&!$('#auth'))showAuth('reset');
+    /* session ended elsewhere (password changed, account removed): back to the login screen */
+    if(ev==='SIGNED_OUT'&&user){try{localStorage.removeItem(SKEY)}catch(e){}cloud=null;jStop();user=null;$('#qafab').hidden=true;showAuth('login')}
+  });
+}else if(user)startApp();else{$('#main').classList.add('loading');showAuth('login')}
 })();

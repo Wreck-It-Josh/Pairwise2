@@ -1,0 +1,22 @@
+# Pairwise is a static site: no build step, Netlify serves the public/ folder as-is.
+[build]
+  publish = "public"
+  command = ""
+
+# Cleo's AI answers (netlify/functions/cleo.mjs, served at /api/cleo).
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Always check for a fresh copy of the app files, so a new deploy reaches everyone on the next load.
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
