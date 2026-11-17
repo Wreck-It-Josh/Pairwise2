@@ -23,6 +23,12 @@
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
+# Home screen app manifest (Android reads this for the app name and icon).
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
 # Always check for a fresh copy of the app files, so a new deploy reaches everyone on the next load.
 [[headers]]
   for = "/*.js"
