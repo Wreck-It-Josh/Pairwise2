@@ -44,6 +44,10 @@ In Supabase, copy the **Project URL** (shown under **Connect**, or **Project Set
 
 Connect the repo, or drag the `public` folder onto app.netlify.com/drop. [`netlify.toml`](netlify.toml) already sets the publish folder to `public` with no build command.
 
+The browser needs the Supabase project URL and publishable (or legacy anon) key to connect. These are public client settings, so `netlify.toml` excludes `SUPABASE_URL` and `SUPABASE_ANON_KEY` from environment-value secrets scanning and excludes the public publishable key from smart detection. Other environment variables, including `ANTHROPIC_API_KEY`, remain scanned. Keep these exceptions limited to public client settings; never add a Supabase secret or service-role key. A static browser script cannot read `process.env` directly.
+
+If a deploy reports `SUPABASE_URL` in secrets scanning, make sure it uses the revision containing these `netlify.toml` settings. Local `.env` files are ignored by git. The public project URL alone does not require rewriting git history; if a private credential was committed, revoke it and coordinate history cleanup separately.
+
 **4. Point Supabase's emails at your site**
 
 In Supabase, open **Authentication > URL Configuration**:
