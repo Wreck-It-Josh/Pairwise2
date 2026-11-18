@@ -982,3 +982,118 @@ p.insight b{color:var(--ink);font-weight:600}
   /* add-a-section: same card look as the sections above it */
   .secadd{background:var(--card);border-radius:22px;padding:14px;box-shadow:var(--shadow)}
 }
+
+/* ---- checklist: header, stats, budget banner, sticky filters ---- */
+.chkhead{flex-wrap:nowrap}
+.chkhead .ttl{min-width:0;flex:1}
+.hbtns{display:flex;gap:8px;align-items:center;flex:none}
+.hbtns .round .ic{width:18px;height:18px}
+.hbtns .round.danger:hover{color:var(--bad)}
+.delask{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:340px}
+.gctl{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 16px}
+.chkstats{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:12px}
+.chkstats .mid{font-size:30px;margin:14px 0 0}
+.ico.good{background:color-mix(in srgb,var(--good) 16%,var(--card));color:var(--good)}
+.estban{display:flex;align-items:center;gap:16px;margin-bottom:8px;background:linear-gradient(135deg,color-mix(in srgb,var(--good) 9%,var(--card)),color-mix(in srgb,var(--good) 22%,var(--card)))}
+.estic{width:52px;height:52px;border-radius:50%;border:2.5px solid var(--good);color:var(--good);display:grid;place-items:center;flex:none}
+.estic .ic{width:26px;height:26px;stroke-width:2}
+.estban .el{font-size:13px;font-weight:600}
+.estban .ev{font-size:32px;font-weight:700;letter-spacing:-.03em;color:var(--good);margin:4px 0 2px;overflow-wrap:anywhere}
+.estban .es{font-size:12.5px;color:var(--muted)}
+.chkbar{position:sticky;top:0;z-index:6;display:grid;gap:10px;padding:10px 0;margin-bottom:6px;background:var(--shell)}
+.chkbar .tabs{margin:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.chkbar .tabs::-webkit-scrollbar{display:none}
+.chkbar .tab{flex:none}
+.chkbar .tab[aria-selected="true"]{background:var(--pill);color:var(--on-pill)}
+.chkq{display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;border-radius:999px;background:var(--card);box-shadow:var(--shadow);color:var(--muted);cursor:text}
+.chkq input{flex:1;min-width:0;height:100%;border:0;background:none;color:var(--ink);font:inherit;outline:0}
+.chkq:focus-within{box-shadow:0 0 0 2px var(--accent)}
+
+/* ---- checklist: section cards ---- */
+.chk{padding:20px 22px 18px}
+.sechd{display:flex;align-items:center;gap:10px}
+.secpill{display:inline-flex;align-items:center;gap:10px;min-width:0;padding:5px 18px 5px 5px;border-radius:999px;background:var(--accent-soft);font-size:17px;font-weight:700;letter-spacing:-.02em}
+.secpill .ico{width:32px;height:32px;background:var(--card);color:var(--accent)}
+.secpill b{font-weight:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.secmore{margin-left:auto;width:40px;height:40px;border-radius:50%;background:var(--chip);color:var(--ink);display:grid;place-items:center;flex:none}
+.secmore:hover{background:var(--accent-soft)}
+.secmore .ic{width:18px;height:18px}
+.secsub{display:flex;align-items:center;gap:14px;margin:10px 2px 6px;color:var(--muted);font-size:13px}
+.chk .secsub .meter{flex:1 1 auto;width:auto;max-width:160px;height:6px}
+.emptyst{text-align:center;color:var(--muted);padding:28px 18px}
+.irow[hidden],.chk[hidden],.emptyst[hidden]{display:none!important}
+.morelist .warnbtn{background:color-mix(in srgb,var(--bad) 14%,var(--card));color:var(--bad)}
+
+/* ---- checklist: item rows ---- */
+.irow{display:grid;grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:"cb nm more" ". pills price" ". note note";align-items:center;gap:6px 10px;padding:14px 0;border-top:1px solid var(--line)}
+.secsub+.irow{border-top:0}
+.irow>.cb{grid-area:cb;justify-self:center;width:28px;height:28px}
+.irow>.cb .ic{width:15px;height:15px}
+.irow>.cb[aria-pressed="true"]{background:var(--good);border-color:var(--good)}
+.inm{grid-area:nm;justify-self:start;max-width:100%;text-align:left;font-size:16px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere;padding:4px 0;border-radius:8px;transition:color .2s}
+.inm:hover{color:var(--accent)}
+.irow.bought .inm,.irow.dim .inm{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1.5px}
+.irow.dim{opacity:.7}
+.imore{grid-area:more;width:36px;height:36px;border-radius:50%;color:var(--muted);display:grid;place-items:center}
+.imore:hover{background:var(--chip);color:var(--ink)}
+.ipills{grid-area:pills;display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.pp{position:relative;display:inline-flex;align-items:center;border-radius:999px;background:var(--chip);color:var(--muted);font-size:13px;font-weight:600}
+.pp select{appearance:none;-webkit-appearance:none;height:32px;padding:0 28px 0 12px;border:0;border-radius:999px;background:none;color:inherit;font:inherit;cursor:pointer;outline:0}
+.pp select option{color:#111;background:#fff}
+.pp::after{content:"";position:absolute;right:12px;top:50%;width:5px;height:5px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:translateY(-70%) rotate(45deg);pointer-events:none;opacity:.75}
+.pp:focus-within{box-shadow:0 0 0 2px var(--accent)}
+.pp.near{background:color-mix(in srgb,var(--warn) 20%,transparent);color:color-mix(in srgb,var(--warn) 62%,var(--ink))}
+.pp.ok{background:color-mix(in srgb,var(--good) 16%,transparent);color:color-mix(in srgb,var(--good) 78%,var(--ink))}
+.pp.hi{background:color-mix(in srgb,var(--bad) 14%,transparent);color:color-mix(in srgb,var(--bad) 82%,var(--ink))}
+.pp.md{background:color-mix(in srgb,var(--accent) 15%,transparent);color:color-mix(in srgb,var(--accent) 76%,var(--ink))}
+.pp.hi select,.pp.md select,.pp.lo select{padding-left:25px}
+.pp.hi::before,.pp.md::before,.pp.lo::before{content:"";position:absolute;left:11px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:currentColor;pointer-events:none}
+.pp.qty{gap:2px;padding-left:12px;cursor:text}
+.pp.qty::after{display:none}
+.pp.qty span{font-weight:500}
+.pp.qty input{width:64px;height:32px;padding:0 12px 0 4px;border:0;background:none;color:var(--ink);font:inherit;outline:0}
+.iprice{grid-area:price;justify-self:end;display:flex;align-items:center;gap:2px;padding:0 4px 0 10px;border-radius:12px;color:var(--muted);font-size:15px;font-weight:600;cursor:text}
+.iprice input{width:96px;height:34px;border:0;background:none;color:var(--ink);font:inherit;text-align:right;outline:0;-moz-appearance:textfield;appearance:textfield}
+.iprice input::-webkit-outer-spin-button,.iprice input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.iprice:hover{background:var(--chip)}
+.iprice:focus-within,.inote:focus-within{background:var(--card);box-shadow:0 0 0 2px var(--accent)}
+.inote{grid-area:note;display:flex;align-items:center;gap:8px;margin-left:-8px;padding:0 8px;border-radius:10px;color:var(--muted);cursor:text}
+.inote .ic{width:14px;height:14px}
+.inote input{flex:1;min-width:0;height:32px;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;outline:0}
+.inote input::placeholder,.iprice input::placeholder,.pp.qty input::placeholder{color:var(--muted)}
+.inote:hover{background:var(--chip)}
+.additem{margin-top:14px}
+.additem .in{height:46px;background:var(--card-2)}
+.additem .btn{height:46px;padding:0 20px}
+.secaddbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:58px;margin-top:16px;border-radius:22px;border:2px dashed color-mix(in srgb,var(--muted) 55%,transparent);color:var(--muted);font-size:15px;font-weight:500;transition:color .2s,border-color .2s}
+.secaddbtn:hover{border-color:var(--accent);color:var(--accent)}
+.secaddbtn .ic{width:18px;height:18px}
+
+/* wide screens: each item fits on one line */
+@media (min-width:900px){
+  .irow{grid-template-columns:36px minmax(150px,1.1fr) auto minmax(120px,1fr) auto 36px;grid-template-areas:"cb nm pills note price more";padding:10px 0}
+  .inote{margin-left:0}
+}
+@media (max-width:1100px){.chkstats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* phones: 2 x 2 stats, filter bar runs edge to edge, touch-sized controls without oversized pills */
+@media (max-width:767.98px){
+  .grid.chkstats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .chkstats .card{padding:16px}
+  .chkstats .card h3{font-size:13px;gap:8px}
+  .chkstats .mid{font-size:28px;margin-top:12px}
+  .estban{gap:14px}.estban .ev{font-size:28px}
+  .estic{width:46px;height:46px}.estic .ic{width:22px;height:22px}
+  .chkbar{margin-inline:-16px;padding-inline:16px}
+  .chkbar .tabs{margin-inline:-16px;padding-inline:16px}
+  .chk{padding:18px 16px 16px}
+  .secpill{font-size:16px}
+  .secmore{width:44px;height:44px}
+  .imore{width:44px;height:44px;margin-right:-6px}
+  .irow>.cb{min-height:0}
+  .pp select,.pp.qty input{height:38px;min-height:38px}
+  .iprice input{height:38px;min-height:38px;width:88px}
+  .inote input{height:36px;min-height:36px}
+  .inm{min-height:36px}
+  .secaddbtn{min-height:58px}
+}
+@media (pointer:coarse) and (min-width:768px){.pp select,.pp.qty input,.iprice input{min-height:38px;height:38px}.inote input{min-height:36px}}

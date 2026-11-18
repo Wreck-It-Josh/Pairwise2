@@ -42,7 +42,10 @@ const P={
   receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   film:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 9 5 3-5 3z"/>',
   x:'<path d="M6 6l12 12M18 6L6 18"/>',
-  phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'
+  phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+  edit:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'
 };
 const ic=(n,cls='')=>`<svg class="ic ${cls}" viewBox="0 0 24 24">${P[n]||''}</svg>`;
 const GY=209; /* G$ per US$1; every stored amount is in G$, rates are per US$1 */
@@ -705,7 +708,8 @@ function restock(cl){
   return out.sort((a,b)=>b.late-a.late).slice(0,4);
 }
 function estOf(cl){return sum(cl.items.filter(x=>x.s==='Need to Buy'||x.s==='Purchased').map(x=>+x.c||0))}
-function secAreas(cl){return cl.type==='apt'?[...new Set([...cl.items.map(x=>x.a),...cl.groups])]:[...new Set([...cl.groups,...cl.items.map(x=>x.a)])]}
+/* section order: the list's saved order; the apartment list falls back to item order until it has a full saved order */
+function secAreas(cl){const ia=cl.items.map(x=>x.a),g=cl.groups;return cl.type==='apt'&&!ia.every(a=>g.includes(a))?[...new Set([...ia,...g])]:[...new Set([...g,...ia])]}
 function shareText(cl){
   const need=cl.items.filter(x=>x.s==='Need to Buy'),d=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
   let t=`${cl.name} (${d})\n`;
@@ -775,44 +779,88 @@ function curList(){
     get items(){return S.check},set items(v){S.check=v},
     get groups(){return S.aptGroups||(S.aptGroups=[])},set groups(v){S.aptGroups=v}};
 }
+const PRCLS={High:'hi',Medium:'md',Low:'lo'},PRORD={High:0,Medium:1,Low:2};
+const isDone=x=>x.s==='Purchased'||x.s==='Already Have';
+const qHit=x=>!ui.q||x.i.toLowerCase().includes(ui.q.toLowerCase());
+/* still-to-buy first (high priority on top), then done, then not needed; ties keep the order they were added */
+function sortRows(rows,pri){const rk=x=>x.s==='Need to Buy'?0:x.s==='Not Needed'?2:1;
+  return rows.map((x,k)=>[x,k]).sort((p,q)=>rk(p[0])-rk(q[0])||(pri?(PRORD[p[0].p]??1)-(PRORD[q[0].p]??1):0)||p[1]-q[1]).map(p=>p[0])}
+function itemRow(cl,x){
+  const ok=isDone(x),cls=[ok?'done':'',x.s==='Purchased'?'bought':'',x.s==='Not Needed'?'dim':''].join(' ');
+  return `<div class="irow ${cls}" data-name="${esc(x.i.toLowerCase())}" ${qHit(x)?'':'hidden'}>
+   <button class="cb" data-tick="${x.id}" aria-pressed="${ok}" aria-label="${ok?'Mark as still to buy':'Mark as purchased'}: ${esc(x.i)}">${ic('check')}</button>
+   <button class="inm" data-iedit="${x.id}" aria-label="Edit ${esc(x.i)}">${esc(x.i)}</button>
+   <div class="ipills">
+    ${cl.pri?`<span class="pp ${PRCLS[x.p]||'md'}"><select data-ck="${x.id}:p" aria-label="Priority of ${esc(x.i)}">${PRI.map(o=>`<option value="${o}" ${o===x.p?'selected':''}>${o} priority</option>`).join('')}</select></span>`:''}
+    <span class="pp ${stCls(x.s)}"><select data-ck="${x.id}:s" aria-label="Status of ${esc(x.i)}">${STAT.map(o=>`<option ${o===x.s?'selected':''}>${o}</option>`).join('')}</select></span>
+    ${cl.qty?`<label class="pp qty"><span>Qty</span><input data-ck="${x.id}:q" value="${esc(x.q||'')}" placeholder="1" maxlength="10" aria-label="Quantity of ${esc(x.i)}"></label>`:''}
+   </div>
+   <label class="iprice"><span>G$</span><input type="number" inputmode="decimal" min="0" step="any" value="${x.c==null?'':x.c}" placeholder="0" data-ck="${x.id}:c" aria-label="Estimated cost of ${esc(x.i)} in G$"></label>
+   <label class="inote">${ic('edit')}<input value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Note for ${esc(x.i)}"></label>
+   <button class="imore" data-iedit="${x.id}" aria-label="More options for ${esc(x.i)}">${ic('more')}</button>
+  </div>`;
+}
+/* bottom sheet: everything about one item, including moving it to another section and deleting it */
+function itemSheet(id){
+  const cl=curList(),x=cl.items.find(r=>r.id==id);if(!x)return;ui.idel=null;
+  const opt=(arr,cur,lab=o=>o)=>arr.map(o=>`<option value="${esc(o)}" ${o===cur?'selected':''}>${esc(lab(o))}</option>`).join('');
+  modal(`<h3>Edit item</h3><form class="form" id="itemform" data-id="${x.id}" style="margin-top:12px">
+   <label class="f">Name<input class="in" id="it-n" maxlength="50" required value="${esc(x.i)}"></label>
+   <div class="two"><label class="f">Section<select class="in" id="it-a">${opt(secAreas(cl),x.a)}</select></label><label class="f">Status<select class="in" id="it-s">${opt(STAT,x.s)}</select></label></div>
+   <div class="two">${cl.pri?`<label class="f">Priority<select class="in" id="it-p">${opt(PRI,x.p)}</select></label>`:''}${cl.qty?`<label class="f">Quantity<input class="in" id="it-q" maxlength="10" placeholder="1" value="${esc(x.q||'')}"></label>`:''}<label class="f">Estimated cost (G$)<input class="in" id="it-c" type="number" inputmode="decimal" min="0" step="any" placeholder="Not priced yet" value="${x.c==null?'':x.c}"></label></div>
+   <label class="f">Note<input class="in" id="it-o" maxlength="80" placeholder="e.g. Check prices at Courts" value="${esc(x.n)}"></label>
+   <div class="btns"><button class="btn dark" type="submit">${ic('check')}Save</button><button class="btn" type="button" data-idel="${x.id}">${ic('trash')}Delete item</button></div></form>`);
+}
+function secMenu(a){
+  const cl=curList(),ar=secAreas(cl),i=ar.indexOf(a),n=cl.items.filter(x=>x.a===a).length,ask=ui.secDel===a;
+  modal(`<h3>${esc(a)}</h3><div class="hint">${n?`${n} item${n===1?'':'s'} in this section`:'This section is empty'}</div>
+   <form class="form" id="secrenform" data-sec="${esc(a)}" style="margin-top:12px"><label class="f">Section name<input class="in" id="sr-n" maxlength="30" required value="${esc(a)}"></label><button class="btn dark" type="submit">Save name</button></form>
+   <div class="morelist">
+    ${i>0?`<button data-secmv="${esc(a)}:-1"><span class="ico">${ic('up')}</span>Move up</button>`:''}
+    ${i<ar.length-1?`<button data-secmv="${esc(a)}:1"><span class="ico">${ic('down')}</span>Move down</button>`:''}
+    <button data-secdel="${esc(a)}" class="${ask?'warnbtn':''}"><span class="ico">${ic('trash')}</span>${ask?`Tap again to delete ${esc(a)} and its ${n} item${n===1?'':'s'}`:'Delete section'}</button>
+   </div>`);
+}
 function checklist(){
   const cl=curList(),L=cl.items,f=ui.chk,apt=cl.type==='apt',g=isG(cl);
   if(g&&ui.shop){ui.lanim=false;return shopView(cl)}
-  const cnt=s=>L.filter(x=>x.s===s).length,budget=sum(L.map(x=>+x.c||0));
-  const stat=(t,v,fm,icn)=>`<div class="card"><h3><span class="ico">${ic(icn)}</span>${t}</h3><div class="mid" data-count="${v}" data-f="${fm}">0</div></div>`;
-  const areas=secAreas(cl);
+  const cnt=s=>L.filter(x=>x.s===s).length,est=estOf(cl);
+  const spent=sum(L.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),toBuy=sum(L.filter(x=>x.s==='Need to Buy').map(x=>+x.c||0));
+  const stat=(t,v,icn,c='')=>`<div class="card"><h3><span class="ico ${c}">${ic(icn)}</span>${t}</h3><div class="mid" data-count="${v}" data-f="n">0</div></div>`;
   const tabs=['All',...STAT].map(s=>`<button class="tab" role="tab" aria-selected="${f===s}" data-chk="${s}">${s} · ${s==='All'?L.length:cnt(s)}</button>`).join('');
-  const nc=3+(cl.qty?1:0)+(cl.pri?1:0)+2;
-  const cards=areas.map(a=>{
-    const rows=L.filter(x=>x.a===a),vis=f==='All'?rows:rows.filter(x=>x.s===f);
+  const cards=secAreas(cl).map(a=>{
+    const rows=L.filter(x=>x.a===a),vis=sortRows(f==='All'?rows:rows.filter(x=>x.s===f),cl.pri);
     if(!vis.length&&f!=='All')return '';
-    const done=rows.filter(x=>x.s==='Purchased'||x.s==='Already Have').length,sub=sum(rows.map(x=>+x.c||0));
-    const body=vis.map(x=>{const ok=x.s==='Purchased'||x.s==='Already Have';
-      return `<tr class="${x.s==='Not Needed'?'dim':''}"><td style="width:34px"><button class="cb" data-tick="${x.id}" aria-pressed="${ok}" aria-label="Toggle ${esc(x.i)}">${ic('check')}</button></td><td class="it">${esc(x.i)}</td>
-      ${cl.qty?`<td data-l="Qty"><input class="cell qty" value="${esc(x.q||'')}" placeholder="1" maxlength="10" data-ck="${x.id}:q" aria-label="Quantity"></td>`:''}
-      <td data-l="Status"><select class="cell ${stCls(x.s)}" data-ck="${x.id}:s" aria-label="Status">${STAT.map(o=>`<option ${o===x.s?'selected':''}>${o}</option>`).join('')}</select></td>
-      ${cl.pri?`<td data-l="Priority"><select class="cell" data-ck="${x.id}:p" aria-label="Priority">${PRI.map(o=>`<option ${o===x.p?'selected':''}>${o}</option>`).join('')}</select></td>`:''}
-      <td data-l="Cost (G$)"><input class="cell num" type="number" inputmode="decimal" min="0" step="100" value="${x.c==null?'':x.c}" placeholder="—" data-ck="${x.id}:c" aria-label="Estimated cost"></td>
-      <td data-l="Notes"><input class="cell" value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Notes"></td>
-      <td class="tdel" style="width:34px"><button class="xdel" data-del="${x.id}" aria-label="Remove ${esc(x.i)}">×</button></td></tr>`}).join('');
-    const table=vis.length?`<div class="tw"><table class="tbl stk"><thead><tr><th></th><th>Item</th>${cl.qty?'<th>Qty</th>':''}<th>Status</th>${cl.pri?'<th>Priority</th>':''}<th style="text-align:right">Estimated Cost (G$)</th><th>Notes</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`;
-    return `<div class="card chk" data-sec="${esc(a)}"><div class="row" style="flex-wrap:wrap"><div style="display:flex;align-items:center;gap:12px">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<span class="ico cat-ic">${ic(GIC[a]||'list')}</span><div><h3>${esc(a)}</h3><div class="hint">${rows.length?`${done} of ${rows.length} ready · ${fmt(sub,'G$')} estimated`:'Empty section'}</div></div></div>
-      <div class="row" style="gap:10px">${g?`<span class="secmv"><button data-secmv="${esc(a)}:-1" aria-label="Move ${esc(a)} up">▲</button><button data-secmv="${esc(a)}:1" aria-label="Move ${esc(a)} down">▼</button></span>`:''}${rows.length?`<div class="meter"><i data-w="${(done/rows.length*100).toFixed(1)}"></i></div>`:''}${rows.length?'':`<button class="secdel" data-secdel="${esc(a)}" aria-label="Remove section ${esc(a)}">×</button>`}</div></div>
-      ${table}
-      <form class="addrow" data-area="${esc(a)}"><input class="in" name="item" placeholder="Add an item" maxlength="50" aria-label="New item for ${esc(a)}"><button class="btn sm dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
+    const done=rows.filter(isDone).length,sub=sum(rows.map(x=>+x.c||0)),hid=ui.q&&!vis.some(qHit);
+    return `<div class="card chk" data-sec="${esc(a)}" ${hid?'hidden':''}>
+     <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<span class="secpill"><span class="ico">${ic(GIC[a]||'list')}</span><b>${esc(a)}</b></span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('more')}</button></div>
+     <div class="secsub"><span>${rows.length?`${done} of ${rows.length} ready · ${fmt(sub,'G$')} estimated`:'Empty section'}</span>${rows.length?`<div class="meter"><i data-w="${(done/rows.length*100).toFixed(1)}"></i></div>`:''}</div>
+     ${vis.length?vis.map(x=>itemRow(cl,x)).join(''):`<div class="emptyrow">No items yet. Add the first one below.</div>`}
+     <form class="addrow additem" data-area="${esc(a)}"><input class="in" name="item" placeholder="${cl.qty?'Add items, e.g. 2 tomatoes, milk':'Add an item…'}" maxlength="200" autocomplete="off" aria-label="New item for ${esc(a)}"><button class="btn dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
   const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length}))];
   const sw=`<div class="lsw" role="tablist" aria-label="Lists">${lists.map(l=>`<button class="ltab" role="tab" aria-selected="${l.id===cl.id}" data-list="${l.id}"><span>${esc(l.name)}</span><em>${l.n}</em></button>`).join('')}<button class="ltab add" data-act="newlist">${ic('plus')}New list</button></div>`;
   const newForm=ui.newList?`<form class="card" id="newlistform" style="margin-bottom:16px"><h3>Create a list</h3><div class="two form"><label class="f">Name<input class="in" id="nlname" maxlength="30" placeholder="e.g. Pharmacy run" required></label><label class="f">Start from<select class="in" id="nltpl"><option value="groceries">Groceries (6 sections, quantity)</option><option value="market">Market day (Guyanese staples)</option><option value="blank">Blank list (one section, priority)</option></select></label></div><div class="btns"><button class="btn dark" type="submit">${ic('plus')}Create list</button><button class="btn" type="button" data-act="newlist">Cancel</button></div></form>`:'';
   const title=ui.ren&&!apt?`<form class="hdr-form" id="renform"><input class="in" id="rname" value="${esc(cl.name)}" maxlength="30" aria-label="List name" required><button class="btn sm dark" type="submit">Save</button><button class="btn sm" type="button" data-act="renlist">Cancel</button></form>`:`<h1>${apt?'Apartment Checklist':esc(cl.name)}</h1>`;
-  const sub=apt?'Use the Status dropdown to track what you already have, need to buy, or do not need.':g?'Add what you need. Drag sections into the order you walk your store, then tap Shopping mode.':'Add items, track their status and keep a running estimate.';
-  const ctrl=apt?'':ui.delc?`<div class="row" style="gap:8px;flex-wrap:wrap"><span class="hint" style="margin:0">Delete this list and its ${L.length} item${L.length===1?'':'s'}?</span><button class="btn sm orange" data-act="dellist-yes">Yes, delete</button><button class="btn sm" data-act="dellist">Cancel</button></div>`:`<div class="row" style="gap:8px"><button class="btn sm" data-act="renlist">Rename</button><button class="btn sm" data-act="dellist">Delete list</button></div>`;
-  const gctl=g?`<button class="btn sm dark" data-act="shop">${ic('bag')}Shopping mode</button><button class="btn sm" data-act="share">Share</button>`:'';
-  const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}"><div class="page-head"><div>${title}<div class="sub">${sub}</div></div><div class="row" style="gap:8px;flex-wrap:wrap">${gctl}${ctrl}</div></div>${g?gExtras(cl):''}${apt?planCard():''}
-  <div class="grid g-5" style="margin-bottom:16px">${stat('Total Items',L.length,'n','receipt')}${stat('Already Have',cnt('Already Have'),'n','home')}${stat('Need to Buy',cnt('Need to Buy'),'n','bag')}${stat('Purchased',cnt('Purchased'),'n','check')}${stat('Estimated Budget (GYD)',budget,'G$','coin')}</div>
-  <div class="tabs" role="tablist">${tabs}</div>${cards}${g?finishCard(cl):''}
-  <form class="addrow secadd" id="secform"><input class="in" name="sec" placeholder="${apt?'e.g. Balcony':'e.g. Frozen'}" maxlength="30" aria-label="New section"><button class="btn sm" type="submit">${ic('plus')}Add section</button></form></div>`;
+  const sub=apt?'Tick things off as you get them. Tap an item to edit, move or delete it.':g?'Add what you need, put the sections in the order you walk your store, then tap Shopping mode.':'Add items, track their status and keep a running estimate.';
+  const ctrl=apt||ui.ren?'':ui.delc?`<div class="delask"><span class="hint" style="margin:0">Delete this list and its ${L.length} item${L.length===1?'':'s'}?</span><button class="btn sm orange" data-act="dellist-yes">Yes, delete</button><button class="btn sm" data-act="dellist">Cancel</button></div>`:`<button class="round" data-act="renlist" aria-label="Rename list">${ic('edit')}</button><button class="round danger" data-act="dellist" aria-label="Delete list">${ic('trash')}</button>`;
+  const gctl=g?`<div class="gctl"><button class="btn sm dark" data-act="shop">${ic('bag')}Shopping mode</button><button class="btn sm" data-act="share">Share</button></div>`:'';
+  const search=L.length>=6?`<label class="chkq">${ic('search')}<input id="chkq" type="search" placeholder="Search ${L.length} items" value="${esc(ui.q||'')}" autocomplete="off" aria-label="Search items"></label>`:'';
+  const anyHit=!ui.q||L.some(x=>qHit(x)&&(f==='All'||x.s===f));
+  const empty=`<div class="card emptyst" id="chkempty" ${cards&&anyHit?'hidden':''}>${ui.q?`Nothing matches "${esc(ui.q)}".`:`No items marked ${esc(f)}.`}</div>`;
+  const secAdd=ui.secAdd?`<form class="addrow secadd" id="secform"><input class="in" name="sec" placeholder="${apt?'e.g. Balcony':'e.g. Frozen'}" maxlength="30" aria-label="New section name" required><button class="btn sm dark" type="submit">${ic('plus')}Add section</button><button class="btn sm" type="button" data-act="secadd">Cancel</button></form>`:`<button class="secaddbtn" data-act="secadd">${ic('plus')}Add section</button>`;
+  const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}"><div class="page-head chkhead"><div class="ttl">${title}<div class="sub">${sub}</div></div>${ctrl?`<div class="hbtns">${ctrl}</div>`:''}</div>${gctl}${g?gExtras(cl):''}${apt?planCard():''}
+  <div class="grid chkstats">${stat('Total Items',L.length,'receipt')}${stat('Already Have',cnt('Already Have'),'home')}${stat('Need to Buy',cnt('Need to Buy'),'bag')}${stat('Purchased',cnt('Purchased'),'check','good')}</div>
+  <div class="card estban"><span class="estic">${ic('coin')}</span><div><div class="el">Estimated budget (GYD)</div><div class="ev" data-count="${est}" data-f="G$">0</div><div class="es">${fmt(spent,'G$')} spent · ${fmt(toBuy,'G$')} still to buy</div></div></div>
+  <div class="chkbar">${search}<div class="tabs" role="tablist" aria-label="Filter by status">${tabs}</div></div>${cards}${empty}${g?finishCard(cl):''}
+  ${secAdd}</div>`;
   ui.lanim=false;return out;
 }
+function applyQ(){
+  const q=(ui.q||'').toLowerCase();
+  $$('.chk[data-sec]').forEach(c=>{let n=0;c.querySelectorAll('.irow').forEach(r=>{const h=!!q&&!r.dataset.name.includes(q);r.hidden=h;if(!h)n++});c.hidden=!!q&&!n});
+  const em=$('#chkempty');if(em){const none=!$$('.chk[data-sec]:not([hidden])').length;em.hidden=!none;if(none)em.textContent=q?`Nothing matches "${ui.q}".`:`No items marked ${ui.chk}.`}
+}
+document.addEventListener('input',e=>{if(e.target.id!=='chkq')return;ui.q=e.target.value.trim();applyQ()});
 /* ---------- core helpers, profile and buying plan ---------- */
 const PKEY='pairwise-profiles';
 function prof(){if(!user)return null;const all=ldj(PKEY,{});return all[(user.email||'').toLowerCase()]||{name:user.name,email:user.email,gender:'',phone:'',city:'',color:'#e8622a'}}
@@ -1568,15 +1616,22 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-why]');if(el){ui.cleoWhy=!ui.cleoWhy;refresh();return}
   el=t.closest('[data-rail]');if(el){keepForm(()=>{ui.rail=el.dataset.rail;refresh()});return}
   el=t.closest('[data-dir]');if(el){keepForm(()=>{ui.dir=el.dataset.dir;refresh()});return}
-  el=t.closest('[data-list]');if(el){ui.list=el.dataset.list;ui.shop=false;ui.fin=false;ui.share=false;ui.chk='All';ui.ren=false;ui.delc=false;ui.newList=false;ui.lanim=true;refresh();return}
+  el=t.closest('[data-list]');if(el){ui.list=el.dataset.list;ui.shop=false;ui.fin=false;ui.share=false;ui.chk='All';ui.q='';ui.secAdd=false;ui.ren=false;ui.delc=false;ui.newList=false;ui.lanim=true;refresh();return}
   el=t.closest('[data-use]');if(el){const [id,pr]=el.dataset.use.split(':'),x=S.check.find(r=>r.id==id);if(x){x.c=+pr;save();refresh()}return}
   el=t.closest('[data-pcol]');if(el){const all=ldj(PKEY,{}),k=(user.email||'').toLowerCase(),p=prof();all[k]={...p,color:el.dataset.pcol};svj(PKEY,all);paintAvatar();$$('[data-pcol]').forEach(x=>x.setAttribute('aria-pressed',x===el));const pa=$('.pfav');if(pa)pa.style.background=el.dataset.pcol;return}
   el=t.closest('[data-qt]');if(el){openQuick(el.dataset.qt);return}
   el=t.closest('[data-idea]');if(el){ui.idea=el.dataset.idea;refresh();return}
   el=t.closest('[data-quick]');if(el){const cl=curList(),r=addGro(cl,[{name:el.dataset.quick,q:''}]);save();refresh();toast(r.add?`${el.dataset.quick} added`:'Already on the list');return}
   el=t.closest('[data-recipe]');if(el){const cl=curList(),rc=RECIPES[+el.dataset.recipe],r=addGro(cl,rc.it.map(([name,q])=>({name,q:q||''})));save();refresh();toast(`${rc.n}: ${r.add} added${r.skip?`, ${r.skip} already on the list`:''}`);return}
-  el=t.closest('[data-secmv]');if(el){const [nm,d]=el.dataset.secmv.split(/:(?=-?1$)/),cl=curList(),ar=secAreas(cl),i=ar.indexOf(nm),j=i+(+d);if(i>=0&&j>=0&&j<ar.length){[ar[i],ar[j]]=[ar[j],ar[i]];cl.groups=ar;save();refresh()}return}
-  el=t.closest('[data-secdel]');if(el){const cl=curList();cl.groups=cl.groups.filter(g=>g!==el.dataset.secdel);save();refresh();return}
+  el=t.closest('[data-secmv]');if(el){const [nm,d]=el.dataset.secmv.split(/:(?=-?1$)/),cl=curList(),ar=secAreas(cl),i=ar.indexOf(nm),j=i+(+d);if(el.closest('#modalroot'))closeModal();if(i>=0&&j>=0&&j<ar.length){[ar[i],ar[j]]=[ar[j],ar[i]];cl.groups=ar;save();refresh();toast(`${nm} moved ${+d<0?'up':'down'}`)}return}
+  el=t.closest('[data-secmenu]');if(el){ui.secDel=null;secMenu(el.dataset.secmenu);return}
+  el=t.closest('[data-secdel]');if(el){const a=el.dataset.secdel,cl=curList(),n=cl.items.filter(x=>x.a===a).length;
+    if(n&&ui.secDel!==a){ui.secDel=a;secMenu(a);return}
+    ui.secDel=null;cl.items=cl.items.filter(x=>x.a!==a);cl.groups=cl.groups.filter(g=>g!==a);closeModal();save();refresh();toast(n?`${a} and its ${n} item${n===1?'':'s'} deleted`:`${a} deleted`);return}
+  el=t.closest('[data-iedit]');if(el){itemSheet(el.dataset.iedit);return}
+  el=t.closest('[data-idel]');if(el){const id=el.dataset.idel;
+    if(ui.idel!==id){ui.idel=id;el.innerHTML=`${ic('trash')}Tap again to delete`;el.classList.add('orange');return}
+    ui.idel=null;const cl=curList(),x=cl.items.find(r=>r.id==id);cl.items=cl.items.filter(r=>r.id!=id);closeModal();save();refresh();toast(x?`${x.i} deleted`:'Item deleted');return}
   el=t.closest('[data-chk]');if(el){ui.chk=el.dataset.chk;refresh();return}
   el=t.closest('[data-tick]');if(el){const cl=curList(),r=cl.items.find(x=>x.id==el.dataset.tick),was=r.s;r.s=(r.s==='Purchased'||r.s==='Already Have')?'Need to Buy':'Purchased';if(isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);save();refresh();if(isG(cl)&&r.s==='Purchased'&&!cl.items.some(x=>x.s==='Need to Buy'))toast('Cart complete. Nice shopping!');return}
   el=t.closest('[data-del]');if(el){(()=>{const cl=curList();cl.items=cl.items.filter(x=>x.id!=el.dataset.del)})();save();refresh();return}
@@ -1618,6 +1673,7 @@ document.addEventListener('click',e=>{
   if(a==='newlist'){ui.newList=!ui.newList;refresh();if(ui.newList)setTimeout(()=>$('#nlname')?.focus(),50);return}
   if(a==='renlist'){ui.ren=!ui.ren;ui.delc=false;refresh();if(ui.ren)setTimeout(()=>$('#rname')?.select(),50);return}
   if(a==='dellist'){ui.delc=!ui.delc;ui.ren=false;refresh();return}
+  if(a==='secadd'){ui.secAdd=!ui.secAdd;refresh();if(ui.secAdd)setTimeout(()=>$('#secform input')?.focus(),50);return}
   if(a==='dellist-yes'){S.lists=S.lists.filter(l=>l.id!==ui.list);ui.list='apt';ui.delc=false;ui.chk='All';ui.lanim=true;save();refresh();toast('List deleted');return}
   if(a==='profile'){$('#userpop').hidden=true;go('profile');return}
   if(a==='setup'){openSetup();return}
@@ -1644,7 +1700,13 @@ document.addEventListener('change',e=>{
   const s=e.target.closest('[data-sel]');
   if(s){ui[s.dataset.sel]=s.value;refresh();return}
   const k=e.target.closest('[data-ck]');
-  if(k){const [id,fld]=k.dataset.ck.split(':'),r=curList().items.find(x=>x.id==id);r[fld]=fld==='c'?(k.value===''?null:Math.max(0,+k.value)):k.value;if(fld==='c'&&r.c!=null&&isG(curList()))S.prices[r.i.toLowerCase()]=r.c;save();refresh();return}
+  if(k){const [id,fld]=k.dataset.ck.split(':'),cl=curList(),r=cl.items.find(x=>x.id==id);if(!r)return;const was=r.s;
+    r[fld]=fld==='c'?(k.value===''?null:Math.max(0,+k.value)):fld==='n'||fld==='q'?k.value.trim():k.value;
+    if(fld==='c'&&r.c!=null&&isG(cl))S.prices[r.i.toLowerCase()]=r.c;
+    if(fld==='s'&&isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);
+    save();
+    if(fld==='n'||fld==='q')return; /* notes and quantities change nothing else on screen, so the next field you tapped keeps focus */
+    refresh();return}
   const ta=e.target.closest('[data-txa]');
   if(ta){const x=S.tx[+ta.dataset.txa];if(x){const nb=Math.max(0,+ta.value||0),diff=nb-(-x.a);S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent+diff).toFixed(4));S.acc.GYD=+(S.acc.GYD-diff).toFixed(2);x.a=-nb;save();refresh();modal(drillHTML(ui.drill))}return}
   const ge=e.target.closest('[data-gedit]');
@@ -1682,8 +1744,20 @@ document.addEventListener('submit',e=>{
     cl.items=cl.items.filter(x=>x.s!=='Purchased');ui.fin=false;save();refresh();toast(`${fmt(paid,'G$')} logged to ${fk||'Food'}`);return}
   if(f.id==='newlistform'){const nl=makeList($('#nltpl').value,$('#nlname').value.trim());S.lists.push(nl);ui.list=nl.id;ui.newList=false;ui.chk='All';ui.lanim=true;save();refresh();toast(`List "${nl.name}" created`);return}
   if(f.id==='renform'){const v=$('#rname').value.trim();if(v){curList().name=v;ui.ren=false;save();refresh();toast('List renamed')}return}
-  if(f.id==='secform'){const v=f.querySelector('input').value.trim(),cl=curList();if(v){const ex=[...cl.groups,...cl.items.map(x=>x.a)];if(ex.includes(v)){toast('That section already exists');return}cl.groups.push(v);save();refresh();toast('Section added')}return}
-  if(f.dataset.area){const v=f.querySelector('input').value.trim();if(v){curList().items.push({id:Date.now(),a:f.dataset.area,i:v,s:'Need to Buy',p:'Medium',c:null,n:'',q:''});save();refresh();toast('Item added')}return}
+  if(f.id==='secform'){const v=f.querySelector('input').value.trim().replace(/\s+/g,' '),cl=curList();if(v){const ar=secAreas(cl);if(ar.some(a=>a.toLowerCase()===v.toLowerCase())){toast('That section already exists');return}cl.groups=[...ar,v];ui.secAdd=false;save();refresh();toast(`${v} added`);setTimeout(()=>{const n=$$('form[data-area]').find(x=>x.dataset.area===v);if(n){n.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});n.querySelector('input').focus({preventScroll:true})}},60)}return}
+  if(f.id==='secrenform'){const old=f.dataset.sec,v=$('#sr-n').value.trim().replace(/\s+/g,' '),cl=curList();if(!v||v===old){closeModal();return}
+    const ar=secAreas(cl);if(ar.some(a=>a!==old&&a.toLowerCase()===v.toLowerCase())){toast('That section already exists');return}
+    cl.items.forEach(x=>{if(x.a===old)x.a=v});cl.groups=ar.map(a=>a===old?v:a);if(GIC[old]&&!GIC[v])GIC[v]=GIC[old];closeModal();save();refresh();toast(`Renamed to ${v}`);return}
+  if(f.id==='itemform'){const cl=curList(),x=cl.items.find(r=>r.id==f.dataset.id),n=$('#it-n').value.trim();if(!x||!n)return;const was=x.s,c=$('#it-c').value;
+    x.i=n;x.a=$('#it-a').value;x.s=$('#it-s').value;if($('#it-p'))x.p=$('#it-p').value;if($('#it-q'))x.q=$('#it-q').value.trim();x.c=c===''?null:Math.max(0,+c);x.n=$('#it-o').value.trim();
+    if(isG(cl)){if(x.c!=null)S.prices[x.i.toLowerCase()]=x.c;if(x.s==='Purchased'&&was!=='Purchased')bought(x)}
+    closeModal();save();refresh();toast(`${x.i} saved`);return}
+  if(f.dataset.area){const v=f.querySelector('input').value.trim(),cl=curList(),area=f.dataset.area;if(!v)return;
+    /* commas add several at once; lists with a quantity column also read "2 tomatoes" as quantity 2 */
+    const arr=cl.qty?parseQuick(v):v.split(/[,\n;]+/).map(s=>s.trim()).filter(Boolean).map(s=>({name:s.slice(0,50),q:''}));
+    arr.forEach((x,i)=>cl.items.push({id:Date.now()+i,a:area,i:x.name,s:'Need to Buy',p:'Medium',c:isG(cl)?S.prices[x.name.toLowerCase()]??null:null,n:'',q:x.q||''}));
+    save();refresh();toast(arr.length===1?`${arr[0].name} added`:`${arr.length} items added`);
+    setTimeout(()=>$$('form[data-area]').find(x=>x.dataset.area===area)?.querySelector('input').focus({preventScroll:true}),30);return}
   if(f.id==='goalform'){S.goals.push({id:Date.now(),n:$('#gname').value.trim(),t:+$('#gtarget').value,s:0});save();refresh();toast('Goal added');return}
   if(f.id==='addcform'){const n=$('#addc-n').value.trim().replace(/\s+/g,' ');if(!n)return;
     const ex=S.contacts.findIndex(x=>x.n.toLowerCase()===n.toLowerCase());
