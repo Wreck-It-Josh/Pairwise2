@@ -35,6 +35,7 @@ With a free Supabase project the app gets real accounts, a cloud backup of each 
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor > New query**, paste all of [`supabase/schema.sql`](supabase/schema.sql), and click **Run**.
+   Then do the same with [`supabase/shared-lists.sql`](supabase/shared-lists.sql) (lists shared between partners).
 
 **2. Connect the app**
 
@@ -115,6 +116,7 @@ pairwise/
 │   └── icon-light.svg, icon-dark.svg  # favicons, swapped with the theme
 ├── netlify/functions/cleo.mjs  # Cleo's AI answers (checks Supabase login, calls Claude)
 ├── supabase/schema.sql # database tables, security rules and household functions
+├── supabase/shared-lists.sql # shared shopping lists between partners (run after schema.sql)
 ├── netlify.toml        # Netlify settings (publish public/, no build)
 ├── server.js           # tiny static server, Node built-ins only
 ├── start.sh            # starts the app with Node or Python

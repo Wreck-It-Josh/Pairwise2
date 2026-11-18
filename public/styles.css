@@ -1119,3 +1119,13 @@ p.insight b{color:var(--ink);font-weight:600}
   .htrip{flex-wrap:wrap}.htrip .btn{width:100%;justify-content:center}
 }
 @media (pointer:coarse) and (min-width:768px){.pp{height:34px;min-height:34px}.iprice input{min-height:34px}.inote input{min-height:38px}}
+
+/* ---- shared lists ---- */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ltab.sh .ic{width:14px;height:14px}
+.shbadge{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:5px 12px;border-radius:999px;background:var(--accent-soft);color:color-mix(in srgb,var(--accent) 75%,var(--ink));font-size:12.5px;font-weight:600}
+.shbadge .ic{width:14px;height:14px}
+.shbadge i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.shbadge.live i{background:var(--good);animation:pulse 1.6s infinite}
+.shchk{display:flex;gap:10px;align-items:center;margin:4px 0 12px;font-size:13px;cursor:pointer}
+.shchk input{width:auto;margin:0;flex:none}

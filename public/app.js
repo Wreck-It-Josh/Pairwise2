@@ -129,7 +129,7 @@ function loadState(email){
   Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,d);
 }
 loadState(SESS_EMAIL());
-const save=()=>{S._t=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}cloudPush()};
+const save=()=>{S._t=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}cloudPush();try{slSchedule()}catch(e){}};
 function cloudPush(now){
   if(!cloud||cloudKey!==KEY)return;clearTimeout(cloudT);
   const go=()=>{cloudT=0;try{cloud.set({json:JSON.stringify(S),t:Date.now()}).catch(()=>{})}catch(e){}};
@@ -158,8 +158,8 @@ async function sbSync(){
   }catch(e){}finally{sbSyncing=false}
 }
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='hidden'){if(cloudT)cloudPush(true)}
-  else if(SB&&user&&ui.ready&&!cloudT){sbSync();if(J.pull)J.pull()}
+  if(document.visibilityState==='hidden'){if(cloudT)cloudPush(true);if(SL.t){clearTimeout(SL.t);SL.t=0;slPush()}}
+  else if(SB&&user&&ui.ready&&!cloudT){sbSync();if(J.pull)J.pull();if(SL.pull)SL.pull()}
 });
 async function cloudSync(){
   try{
@@ -779,7 +779,7 @@ function shopView(cl){
 
 function makeList(type,name){const t=TPL[type]||TPL.blank;return {id:'l'+Date.now()+Math.floor(Math.random()*999),name:name||t.name,type,pri:t.pri,qty:t.qty,groups:[...t.groups],items:[],budget:null,trips:[]}}
 function curList(){
-  const l=(S.lists||[]).find(x=>x.id===ui.list);
+  const l=(S.lists||[]).find(x=>x.id===ui.list)||SL.lists.find(x=>x.id===ui.list);
   if(l)return l;
   ui.list='apt';
   return {id:'apt',name:'Apartment',type:'apt',pri:true,qty:false,
@@ -796,7 +796,8 @@ function sortRows(rows,pri){const rk=x=>x.s==='Need to Buy'?0:x.s==='Not Needed'
   return rows.map((x,k)=>[x,k]).sort((p,q)=>rk(p[0])-rk(q[0])||(pri?(PRORD[p[0].p]??1)-(PRORD[q[0].p]??1):0)||p[1]-q[1]).map(p=>p[0])}
 function itemRow(cl,x){
   const ok=isDone(x),cls=[ok?'done':'',x.s==='Purchased'?'bought':'',x.s==='Not Needed'?'dim':''].join(' ');
-  const pr=x.p||'Medium',sub=cl.pri?`${pr} priority`:'';
+  const pr=x.p||'Medium',byP=cl.shared&&ok&&x.by&&user&&x.by!==user.id;
+  const sub=[cl.pri?`${pr} priority`:'',byP?`${SL.partner||'Your partner'} ${x.s==='Purchased'?'bought it':'has it'}`:''].filter(Boolean).join(' · ');
   /* item card: name and price on top, small detail line under each, status pills, then the note */
   return `<div class="irow ${cls}" data-name="${esc(x.i.toLowerCase())}" ${qHit(x)?'':'hidden'}>
    <button class="cb" data-tick="${x.id}" aria-pressed="${ok}" aria-label="${ok?'Mark as still to buy':'Mark as purchased'}: ${esc(x.i)}">${ic('check')}</button>
@@ -852,9 +853,10 @@ function listMenu(){
    ${b('shop','bag','Shopping mode')}
    ${b('lbudget','coin',cl.budget!=null?'Change budget':'Set a budget')}
    ${b('history','clock',`Shopping history${tr?` · ${tr} trip${tr===1?'':'s'}`:''}`)}
-   ${b('share','send','Share list')}
+   ${b('share','send','Send as text')}
+   ${!SB||apt?'':cl.shared?(ui.unshare?b('unshare-yes','users',`Tap again to stop sharing. You keep a private copy; it is removed for ${esc(SL.partner||'your partner')}`,1):b('unshare','users','Stop sharing')):b('sharelist','users',SL.hh?`Share with ${esc(SL.partner||'your partner')}`:'Share with your partner')}
    ${!apt&&done?(ui.fresh?b('fresh-yes','refresh',`Tap again to set ${done} ticked item${done===1?'':'s'} back to Need to buy`,1):b('fresh','refresh','Start fresh')):''}
-   ${apt?'':ui.delc?b('dellist-yes','trash',`Tap again to delete this list and its ${cl.items.length} item${cl.items.length===1?'':'s'}`,1):b('dellist','trash','Delete list')}
+   ${apt?'':ui.delc?b('dellist-yes','trash',`Tap again to delete this list and its ${cl.items.length} item${cl.items.length===1?'':'s'}${cl.shared?' for both of you':''}`,1):b('dellist','trash','Delete list')}
   </div>`);
 }
 function budgetSheet(){
@@ -884,7 +886,8 @@ function listHead(cl){
   }else{
     budget=`<div class="row"><span class="lbl">${fmt(spent,'G$')} spent · ${fmt(toBuy,'G$')} still to buy</span><button class="link" data-act="lbudget">Set a budget</button></div>`;
   }
-  return `<div class="card lhead"><div class="lhrow"><div class="ttl">${title}<div class="sub">${sub}</div></div>
+  const shared=cl.shared?`<div class="shbadge ${SL.state==='live'?'live':''}" title="${SL.state==='live'?'Live':'Syncing'}">${ic('users')}Shared with ${esc(SL.partner||'your partner')}<i aria-hidden="true"></i><span class="vh">${SL.state==='live'?', up to date':', syncing'}</span></div>`:'';
+  return `<div class="card lhead"><div class="lhrow"><div class="ttl">${title}<div class="sub">${sub}</div>${shared}</div>
    ${ui.ren?'':`<div class="hbtns">${apt?'':`<button class="round" data-act="renlist" aria-label="Rename list">${ic('edit')}</button>`}<button class="round" data-act="lmenu" aria-label="List options" aria-haspopup="dialog">${ic('more')}</button></div>`}</div>
    <div class="lbud">${budget}</div>
    ${isG(cl)?`<div class="hcta"><button class="btn sm dark" data-act="shop">${ic('bag')}Shopping mode</button></div>`:''}</div>`;
@@ -902,9 +905,9 @@ function checklist(){
      <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<h3 class="secname">${esc(a)}</h3><span class="secct ${rows.length&&done===rows.length?'all':''}">${rows.length?`${done} / ${rows.length} completed`:'Empty'}</span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('kebab')}</button></div>
      ${vis.length?`<div class="ilist">${vis.map(x=>itemRow(cl,x)).join('')}</div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`}
      <form class="addrow additem" data-area="${esc(a)}"><input class="in" name="item" placeholder="${cl.qty?'Add items…':'Add an item…'}" maxlength="200" autocomplete="off" aria-label="New item for ${esc(a)}"><button class="btn dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
-  const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length}))];
-  const sw=`<div class="lsw" role="tablist" aria-label="Lists">${lists.map(l=>`<button class="ltab" role="tab" aria-selected="${l.id===cl.id}" data-list="${l.id}"><span>${esc(l.name)}</span><em>${l.n}</em></button>`).join('')}<button class="ltab add" data-act="newlist">${ic('plus')}New list</button></div>`;
-  const newForm=ui.newList?`<form class="card" id="newlistform" style="margin-bottom:16px"><h3>Create a list</h3><div class="two form"><label class="f">Name<input class="in" id="nlname" maxlength="30" placeholder="e.g. Pharmacy run" required></label><label class="f">Start from<select class="in" id="nltpl"><option value="groceries">Groceries (6 sections, quantity)</option><option value="market">Market day (Guyanese staples)</option><option value="blank">Blank list (one section, priority)</option></select></label></div><div class="btns"><button class="btn dark" type="submit">${ic('plus')}Create list</button><button class="btn" type="button" data-act="newlist">Cancel</button></div></form>`:'';
+  const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length})),...SL.lists.map(l=>({id:l.id,name:l.name,n:l.items.length,sh:1}))];
+  const sw=`<div class="lsw" role="tablist" aria-label="Lists">${lists.map(l=>`<button class="ltab ${l.sh?'sh':''}" role="tab" aria-selected="${l.id===cl.id}" data-list="${l.id}">${l.sh?`${ic('users')}<span class="vh">Shared: </span>`:''}<span>${esc(l.name)}</span><em>${l.n}</em></button>`).join('')}<button class="ltab add" data-act="newlist">${ic('plus')}New list</button></div>`;
+  const newForm=ui.newList?`<form class="card" id="newlistform" style="margin-bottom:16px"><h3>Create a list</h3><div class="two form"><label class="f">Name<input class="in" id="nlname" maxlength="30" placeholder="e.g. Pharmacy run" required></label><label class="f">Start from<select class="in" id="nltpl"><option value="groceries">Groceries (6 sections, quantity)</option><option value="market">Market day (Guyanese staples)</option><option value="blank">Blank list (one section, priority)</option></select></label></div>${SL.hh?`<label class="shchk"><input type="checkbox" id="nlshare" checked> Share with ${esc(SL.partner||'your partner')}: you both see it and changes show up live</label>`:''}<div class="btns"><button class="btn dark" type="submit">${ic('plus')}Create list</button><button class="btn" type="button" data-act="newlist">Cancel</button></div></form>`:'';
   const search=`<label class="chkq">${ic('search')}<input id="chkq" type="search" placeholder="Search items…" value="${esc(ui.q||'')}" autocomplete="off" aria-label="Search items"></label>`;
   const anyHit=!ui.q||L.some(x=>qHit(x)&&(f==='All'||x.s===f));
   const empty=`<div class="card emptyst" id="chkempty" ${cards&&anyHit?'hidden':''}>${ui.q?`Nothing matches "${esc(ui.q)}".`:f==='All'?'Nothing here yet. Add a section below to start.':`No items marked ${esc(STSHORT[f]||f).toLowerCase()}.`}</div>`;
@@ -1221,8 +1224,9 @@ async function jConnectSB(){
   if(!user||user.id!==uid||J.mode==='cloud')return;
   if(error){J.sbReady=false;refreshJ();return}
   J.sbReady=true;
-  if(!p||!p.household_id){refreshJ();return}
+  if(!p||!p.household_id){if(SL.hh){slStop(true);slRefresh()}refreshJ();return} // left the household on another device
   const hh=p.household_id;
+  slConnect(hh);
   SB.from('households').select('code').eq('id',hh).maybeSingle().then(({data})=>{if(J.hh===hh&&data){J.code=data.code;refreshJ()}});
   let pending=ldj(JUP,null)?null:{plans:{...J.plans},moves:{...J.moves}},t=0;
   Object.assign(J,{me:uid,hh,mode:'cloud',state:'connecting',
@@ -1243,9 +1247,12 @@ async function jConnectSB(){
   J.ch=SB.channel('joint-'+hh)
     .on('postgres_changes',{event:'*',table:'joint_plans',...f},()=>J.pull&&J.pull())
     .on('postgres_changes',{event:'*',table:'joint_moves',...f},()=>J.pull&&J.pull())
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'joint_plans'},()=>J.pull&&J.pull()) // deletes cannot be filtered
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'joint_moves'},()=>J.pull&&J.pull())
     .subscribe(s=>{if(s==='SUBSCRIBED'){if(J.pull)J.pull()}else if((s==='CHANNEL_ERROR'||s==='TIMED_OUT')&&J.hh===hh){J.state='stale';refreshJ()}});
 }
 function jStop(){
+  slStop();
   if(J.ch&&SB){try{SB.removeChannel(J.ch)}catch(e){}}
   Object.assign(J,{mode:'local',state:'local',me:null,u:null,db:null,names:{},hh:null,code:null,ch:null,pull:null,sbReady:false,busy:false});
 }
@@ -1255,7 +1262,10 @@ async function hhAction(kind,code){
     if(kind==='create'){const {error}=await SB.rpc('create_household');if(error)throw error}
     else if(kind==='join'){const {error}=await SB.rpc('join_household',{p_code:code});if(error)throw error}
     else if(kind==='leave'){
+      /* shared lists become private copies, since after leaving they can no longer be reached */
+      const keep=SL.lists.map((l,i)=>{const c={...l,id:'l'+Date.now()+i,items:l.items.map(x=>({...x}))};delete c.shared;delete c.ts;return c});
       const {error}=await SB.rpc('leave_household');if(error)throw error;
+      slStop(true);if(keep.length){S.lists.push(...keep);save()}
       jStop();J.plans={};J.moves={};jCache();try{localStorage.removeItem(JUP)}catch(e){}
       J.sbReady=true;ui.hhleave=false;refresh();toast('You left the household');return;
     }
@@ -1294,6 +1304,111 @@ async function jConnect(){
     jCache();jNames();refreshJ();
   },()=>{clearTimeout(timer);J.state='error';refreshJ()}));
 }
+/* ---------- shared lists (partner sync) ----------
+   A list shared with your partner lives in Supabase (supabase/shared-lists.sql), not in either person's private
+   budget: one row per list and one row per item, so two people ticking at once never overwrite each other.
+   After each save the lists are compared with the last synced copy and only what changed is sent; a change
+   from the partner arrives over realtime and is merged, keeping edits made here that are not sent yet. */
+const SL={hh:null,lists:[],last:{},ch:null,state:'off',t:0,rt:0,pullT:0,busy:false,again:false,defer:false,partner:'',pull:null};
+const SLK=()=>'pairwise-shared:'+((user&&user.id)||'');
+/* JSON with sorted keys: the database stores objects with its own key order, so compare in a fixed one */
+function canon(v){
+  if(Array.isArray(v))return '['+v.map(canon).join(',')+']';
+  if(v&&typeof v==='object')return '{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+  return v===undefined?'null':JSON.stringify(v);
+}
+const slMeta=l=>({name:l.name,type:l.type,pri:!!l.pri,qty:!!l.qty,groups:l.groups||[],budget:l.budget??null,trips:(l.trips||[]).slice(0,20),ts:l.ts||0});
+const slItem=(l,x)=>{const d={...x};delete d.id;d.list=l.id;return d};
+function slWant(){const w={};SL.lists.forEach(l=>{w['L:'+l.id]=canon(slMeta(l));l.items.forEach(x=>{w['I:'+x.id]=canon(slItem(l,x))})});return w}
+function slBuild(m){
+  const lists={},items=[];
+  Object.entries(m).forEach(([k,v])=>{const d=JSON.parse(v),id=k.slice(2);if(k[0]==='L')lists[id]={...d,id,shared:true,items:[]};else items.push([id,d])});
+  items.sort((a,b)=>(a[1].ts||+a[0]||0)-(b[1].ts||+b[0]||0)).forEach(([id,d])=>{const l=lists[d.list];if(!l)return;const x={...d,id:/^\d+$/.test(id)?+id:id};delete x.list;l.items.push(x)});
+  SL.lists=Object.values(lists).sort((a,b)=>(a.ts||0)-(b.ts||0)||String(a.id).localeCompare(String(b.id)));
+}
+function slCache(){if(user&&user.id)svj(SLK(),{hh:SL.hh,lists:SL.lists,last:SL.last})}
+function slLoad(){const d=SB&&user&&user.id?ldj(SLK(),null):null;if(d&&d.hh){SL.hh=d.hh;SL.lists=d.lists||[];SL.last=d.last||{}}}
+function slStop(wipe){
+  if(SL.ch&&SB){try{SB.removeChannel(SL.ch)}catch(e){}}
+  clearTimeout(SL.t);clearTimeout(SL.rt);clearTimeout(SL.pullT);
+  Object.assign(SL,{hh:null,lists:[],last:{},ch:null,state:'off',t:0,rt:0,pullT:0,busy:false,again:false,defer:false,partner:'',pull:null});
+  if(wipe&&user&&user.id)try{localStorage.removeItem(SLK())}catch(e){}
+}
+function slSchedule(){if(!SL.hh)return;slCache();clearTimeout(SL.t);SL.t=setTimeout(()=>{SL.t=0;slPush()},400)}
+async function slPush(){
+  if(!SB||!SL.hh)return;
+  if(SL.busy){SL.again=true;return}
+  const want=slWant(),up=Object.keys(want).filter(k=>SL.last[k]!==want[k]),del=Object.keys(SL.last).filter(k=>!(k in want));
+  if(!up.length&&!del.length)return;
+  SL.busy=true;const hh=SL.hh,now=new Date().toISOString();
+  try{
+    const chk=r=>{if(r.error)throw r.error};
+    const rows=p=>up.filter(k=>k[0]===p).map(k=>{const d=JSON.parse(want[k]),r={household_id:hh,id:k.slice(2),data:d,updated_at:now};if(p==='I')r.list_id=d.list;return r});
+    const L=rows('L'),I=rows('I'),dI=del.filter(k=>k[0]==='I').map(k=>k.slice(2)),dL=del.filter(k=>k[0]==='L').map(k=>k.slice(2));
+    if(L.length)chk(await SB.from('shared_lists').upsert(L,{onConflict:'household_id,id'}));   // lists first: items point at them
+    if(I.length)chk(await SB.from('shared_items').upsert(I,{onConflict:'household_id,id'}));
+    if(dI.length)chk(await SB.from('shared_items').delete().eq('household_id',hh).in('id',dI));
+    if(dL.length)chk(await SB.from('shared_lists').delete().eq('household_id',hh).in('id',dL));
+    if(SL.hh!==hh)return;
+    up.forEach(k=>{SL.last[k]=want[k]});del.forEach(k=>{delete SL.last[k]});
+    if(dL.length)Object.keys(SL.last).forEach(k=>{if(k[0]==='I'&&dL.includes(JSON.parse(SL.last[k]).list))delete SL.last[k]});
+    SL.state='live';slPush.warned=false;slCache();
+  }catch(e){
+    if(SL.hh!==hh)return;
+    if(e&&e.code==='23503'){if(SL.pull)SL.pull();return} // the list was deleted on the other phone
+    SL.state='stale';clearTimeout(SL.rt);SL.rt=setTimeout(slPush,8000);
+    if(!slPush.warned){slPush.warned=true;toast('Shared list changes are kept on this phone and will sync when you are back online')}
+  }finally{SL.busy=false;if(SL.again){SL.again=false;slPush()}}
+}
+async function slPull(){
+  const hh=SL.hh;if(!SB||!hh)return;
+  if(SL.busy){clearTimeout(SL.pullT);SL.pullT=setTimeout(slPull,300);return}
+  SL.busy=true;let changed=false;const ps=SL.state;
+  try{
+    const [a,b]=await Promise.all([SB.from('shared_lists').select('id,data').eq('household_id',hh),SB.from('shared_items').select('id,data').eq('household_id',hh)]);
+    if(a.error)throw a.error;if(b.error)throw b.error;if(SL.hh!==hh)return;
+    const remote={};a.data.forEach(r=>{remote['L:'+r.id]=canon(r.data)});b.data.forEach(r=>{remote['I:'+r.id]=canon(r.data)});
+    const want=slWant(),before=canon(want),m={};
+    for(const k in remote){
+      if(k in want)m[k]=SL.last[k]!==want[k]?want[k]:remote[k];   // changed here and not sent yet: keep ours
+      else if(!(k in SL.last))m[k]=remote[k];                      // new from the partner
+      /* else: deleted here, not sent yet. Leave it out; the next push deletes it */
+    }
+    for(const k in want)if(!(k in remote)&&!(k in SL.last))m[k]=want[k]; // added here, not sent yet
+    SL.last=remote;slBuild(m);SL.state='live';slCache();
+    changed=canon(slWant())!==before;
+  }catch(e){if(SL.hh===hh)SL.state='stale'}finally{SL.busy=false}
+  if(changed||(ps!==SL.state&&SL.lists.length))slRefresh();
+  slPush();
+}
+/* show the partner's change, but never while someone is typing or a sheet is open */
+function slRefresh(){
+  if(!ui.ready||ui.route!=='checklist')return;
+  const a=document.activeElement,typing=a&&a.closest&&a.closest('#main')&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
+  if((typing&&a.value)||$('#modalroot').children.length){SL.defer=true;return}
+  /* an empty box (e.g. "Add items…" after adding) keeps the cursor across the redraw */
+  const area=typing&&a.closest('form[data-area]')?a.closest('form[data-area]').dataset.area:null,aid=typing&&a.id;
+  SL.defer=false;refresh();
+  if(area)$$('form[data-area]').find(x=>x.dataset.area===area)?.querySelector('input')?.focus({preventScroll:true});
+  else if(aid)$('#'+aid)?.focus({preventScroll:true});
+}
+document.addEventListener('focusout',()=>{if(SL.defer)setTimeout(()=>{if(SL.defer)slRefresh()},200)});
+async function slConnect(hh){
+  if(SL.hh!==hh){SL.lists=[];SL.last={}}
+  SL.hh=hh;SL.state='connecting';
+  SB.from('profiles').select('id,name').eq('household_id',hh).neq('id',user.id).then(({data})=>{if(SL.hh===hh){SL.partner=((data&&data[0]&&data[0].name)||'').split(' ')[0];slRefresh()}});
+  SL.pull=()=>{clearTimeout(SL.pullT);SL.pullT=setTimeout(slPull,300)};
+  await slPull();
+  if(SL.hh!==hh||SL.ch)return;
+  const f={schema:'public',filter:'household_id=eq.'+hh},go=()=>SL.pull&&SL.pull();
+  /* deletes are announced without a filter (Supabase cannot filter them), so listen for those separately */
+  SL.ch=SB.channel('shared-'+hh)
+    .on('postgres_changes',{event:'*',table:'shared_lists',...f},go).on('postgres_changes',{event:'*',table:'shared_items',...f},go)
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'shared_lists'},go).on('postgres_changes',{event:'DELETE',schema:'public',table:'shared_items'},go)
+    .subscribe(s=>{if(s==='SUBSCRIBED')go();else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT'){SL.state='stale'}});
+}
+/* who ticked it off, shown to the other person */
+const slBy=(cl,r)=>{if(cl.shared&&user&&user.id)r.by=user.id};
 function jMove(pid,amt,out,note,fromMain){
   const id=jid('m'),ts=Date.now(),a=out?-amt:amt;
   if(fromMain){const sc=savCat();S.acc.GYD=+(S.acc.GYD-a).toFixed(2);if(!out&&sc)S.budget[sc].spent=+(S.budget[sc].spent+amt).toFixed(2);
@@ -1696,7 +1811,7 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-iedit]');if(el){itemSheet(el.dataset.iedit,el.dataset.focus);return}
   el=t.closest('[data-ipick]');if(el){const [k,id]=el.dataset.ipick.split(':');pickSheet(k,id);return}
   el=t.closest('[data-set]');if(el){const [k,id,...rest]=el.dataset.set.split(':'),v=rest.join(':'),cl=curList(),r=cl.items.find(x=>x.id==id);closeModal();if(!r)return;
-    if(k==='s'){const was=r.s;r.s=v;if(v!==was)delete r.lg;if(isG(cl)&&v==='Purchased'&&was!=='Purchased')bought(r)}else r.p=v;
+    if(k==='s'){const was=r.s;r.s=v;if(v!==was){delete r.lg;slBy(cl,r)}if(isG(cl)&&v==='Purchased'&&was!=='Purchased')bought(r)}else r.p=v;
     save();refresh();return}
   el=t.closest('[data-price]');if(el){const l=el.parentElement.querySelector('.iprice');if(l){el.hidden=true;l.hidden=false;const i=l.querySelector('input');i.focus();try{i.select()}catch(_){}}return}
   el=t.closest('[data-note]');if(el){const r=el.closest('.irow'),n=r&&r.querySelector('.inote');if(n){el.hidden=true;n.hidden=false;n.querySelector('input').focus()}return}
@@ -1710,7 +1825,7 @@ document.addEventListener('click',e=>{
     if(ui.idel!==id){ui.idel=id;el.innerHTML=`${ic('trash')}Tap again to delete`;el.classList.add('orange');return}
     ui.idel=null;const cl=curList(),x=cl.items.find(r=>r.id==id);cl.items=cl.items.filter(r=>r.id!=id);closeModal();save();refresh();toast(x?`${x.i} deleted`:'Item deleted');return}
   el=t.closest('[data-chk]');if(el){ui.chk=el.dataset.chk;refresh();return}
-  el=t.closest('[data-tick]');if(el){const cl=curList(),r=cl.items.find(x=>x.id==el.dataset.tick),was=r.s;delete r.lg;r.s=(r.s==='Purchased'||r.s==='Already Have')?'Need to Buy':'Purchased';if(isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);save();refresh();if(isG(cl)&&r.s==='Purchased'&&!cl.items.some(x=>x.s==='Need to Buy'))toast('Cart complete. Nice shopping!');return}
+  el=t.closest('[data-tick]');if(el){const cl=curList(),r=cl.items.find(x=>x.id==el.dataset.tick);if(!r)return;const was=r.s;delete r.lg;r.s=(r.s==='Purchased'||r.s==='Already Have')?'Need to Buy':'Purchased';slBy(cl,r);if(isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);save();refresh();if(isG(cl)&&r.s==='Purchased'&&!cl.items.some(x=>x.s==='Need to Buy'))toast('Cart complete. Nice shopping!');return}
   el=t.closest('[data-del]');if(el){(()=>{const cl=curList();cl.items=cl.items.filter(x=>x.id!=el.dataset.del)})();save();refresh();return}
   el=t.closest('[data-cday]');if(el){calDraft();ui.cal.sel=el.dataset.cday;if(ui.remDraft)delete ui.remDraft.d;refresh();return}
   el=t.closest('[data-cmove]');if(el){calDraft();const C=ui.cal,d=pd(C.sel),n=+el.dataset.cmove;if(C.view==='week')C.sel=iso(addD(d,7*n));else{const nm=new Date(d.getFullYear(),d.getMonth()+n,1),t=new Date();C.sel=iso(nm.getFullYear()===t.getFullYear()&&nm.getMonth()===t.getMonth()?t:nm)}if(ui.remDraft)delete ui.remDraft.d;refresh();return}
@@ -1745,7 +1860,16 @@ document.addEventListener('click',e=>{
   if(a==='shop'){closeModal();ui.shop=true;ui.fin=false;ui.share=false;refresh();window.scrollTo({top:0});return}
   if(a==='shopoff'){ui.shop=false;ui.fin=false;ui.lanim=true;refresh();return}
   if(a==='share'){const m=!!el.closest('#modalroot');closeModal();ui.share=m||!ui.share;refresh();if(ui.share)$('#sharecard')?.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});return}
-  if(a==='lmenu'){ui.delc=false;ui.fresh=false;listMenu();return}
+  if(a==='lmenu'){ui.delc=false;ui.fresh=false;ui.unshare=false;listMenu();return}
+  if(a==='sharelist'){closeModal();
+    if(!SL.hh){go('joint');toast('Link with your partner here first, then share the list');return}
+    const cl=curList();if(cl.type==='apt'||cl.shared)return;
+    S.lists=S.lists.filter(l=>l!==cl);const l={...cl,shared:true,ts:Date.now()};SL.lists.push(l);ui.list=l.id;
+    save();refresh();toast(`${l.name} is now shared with ${SL.partner||'your partner'}`);return}
+  if(a==='unshare'){ui.unshare=true;listMenu();return}
+  if(a==='unshare-yes'){const cl=curList();if(!cl.shared)return;closeModal();
+    const c={...cl,id:'l'+Date.now(),items:cl.items.map(x=>({...x}))};delete c.shared;delete c.ts;
+    SL.lists=SL.lists.filter(l=>l!==cl);S.lists.push(c);ui.list=c.id;ui.unshare=false;save();refresh();toast('Stopped sharing. You have a private copy');return}
   if(a==='lbudget'){budgetSheet();return}
   if(a==='lbud-clear'){curList().budget=null;closeModal();save();refresh();toast('Budget removed');return}
   if(a==='history'){historySheet();return}
@@ -1757,7 +1881,7 @@ document.addEventListener('click',e=>{
   if(a==='renlist'){ui.ren=!ui.ren;ui.delc=false;refresh();if(ui.ren)setTimeout(()=>$('#rname')?.select(),50);return}
   if(a==='dellist'){ui.delc=true;ui.ren=false;listMenu();return}
   if(a==='secadd'){ui.secAdd=!ui.secAdd;refresh();if(ui.secAdd)setTimeout(()=>$('#secform input')?.focus(),50);return}
-  if(a==='dellist-yes'){closeModal();S.lists=S.lists.filter(l=>l.id!==ui.list);ui.list='apt';ui.delc=false;ui.chk='All';ui.lanim=true;save();refresh();toast('List deleted');return}
+  if(a==='dellist-yes'){closeModal();S.lists=S.lists.filter(l=>l.id!==ui.list);SL.lists=SL.lists.filter(l=>l.id!==ui.list);ui.list='apt';ui.delc=false;ui.chk='All';ui.lanim=true;save();refresh();toast('List deleted');return}
   if(a==='profile'){$('#userpop').hidden=true;go('profile');return}
   if(a==='setup'){openSetup();return}
   if(a==='cats'){ui.catDel=null;openCats();return}
@@ -1786,7 +1910,7 @@ document.addEventListener('change',e=>{
   if(k){const [id,fld]=k.dataset.ck.split(':'),cl=curList(),r=cl.items.find(x=>x.id==id);if(!r)return;const was=r.s;
     r[fld]=fld==='c'?(k.value===''?null:Math.max(0,+k.value)):fld==='n'||fld==='q'?k.value.trim():k.value;
     if(fld==='c'&&r.c!=null&&isG(cl))S.prices[r.i.toLowerCase()]=r.c;
-    if(fld==='s'&&r.s!==was)delete r.lg;
+    if(fld==='s'&&r.s!==was){delete r.lg;slBy(cl,r)}
     if(fld==='s'&&isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);
     save();
     if(fld==='q'||(fld==='n'&&r.n))return; /* notes and quantities change nothing else on screen, so the next field you tapped keeps focus */
@@ -1829,14 +1953,14 @@ document.addEventListener('submit',e=>{
     if(cl.type==='apt')got.forEach(x=>{x.lg=1});else cl.items=cl.items.filter(x=>!got.includes(x));
     ui.fin=false;save();refresh();toast(`${fmt(paid,'G$')} logged to ${fk||'Food'}`);return}
   if(f.id==='lbudform'){const v=$('#lb-a').value,cl=curList();cl.budget=v===''?null:Math.max(0,+v)||null;closeModal();save();refresh();toast(cl.budget?`Budget set to ${fmt(cl.budget,'G$')}`:'Budget removed');return}
-  if(f.id==='newlistform'){const nl=makeList($('#nltpl').value,$('#nlname').value.trim());S.lists.push(nl);ui.list=nl.id;ui.newList=false;ui.chk='All';ui.lanim=true;save();refresh();toast(`List "${nl.name}" created`);return}
+  if(f.id==='newlistform'){const nl=makeList($('#nltpl').value,$('#nlname').value.trim());if(SL.hh&&$('#nlshare')?.checked){nl.shared=true;nl.ts=Date.now();SL.lists.push(nl)}else S.lists.push(nl);ui.list=nl.id;ui.newList=false;ui.chk='All';ui.lanim=true;save();refresh();toast(`List "${nl.name}" created`);return}
   if(f.id==='renform'){const v=$('#rname').value.trim();if(v){curList().name=v;ui.ren=false;save();refresh();toast('List renamed')}return}
   if(f.id==='secform'){const v=f.querySelector('input').value.trim().replace(/\s+/g,' '),cl=curList();if(v){const ar=secAreas(cl);if(ar.some(a=>a.toLowerCase()===v.toLowerCase())){toast('That section already exists');return}cl.groups=[...ar,v];ui.secAdd=false;save();refresh();toast(`${v} added`);setTimeout(()=>{const n=$$('form[data-area]').find(x=>x.dataset.area===v);if(n){n.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});n.querySelector('input').focus({preventScroll:true})}},60)}return}
   if(f.id==='secrenform'){const old=f.dataset.sec,v=$('#sr-n').value.trim().replace(/\s+/g,' '),cl=curList();if(!v||v===old){closeModal();return}
     const ar=secAreas(cl);if(ar.some(a=>a!==old&&a.toLowerCase()===v.toLowerCase())){toast('That section already exists');return}
     cl.items.forEach(x=>{if(x.a===old)x.a=v});cl.groups=ar.map(a=>a===old?v:a);if(GIC[old]&&!GIC[v])GIC[v]=GIC[old];closeModal();save();refresh();toast(`Renamed to ${v}`);return}
   if(f.id==='itemform'){const cl=curList(),x=cl.items.find(r=>r.id==f.dataset.id),n=$('#it-n').value.trim();if(!x||!n)return;const was=x.s,c=$('#it-c').value;
-    x.i=n;x.a=$('#it-a').value;x.s=$('#it-s').value;if($('#it-p'))x.p=$('#it-p').value;if($('#it-q'))x.q=$('#it-q').value.trim();x.c=c===''?null:Math.max(0,+c);x.n=$('#it-o').value.trim();if(x.s!==was)delete x.lg;
+    x.i=n;x.a=$('#it-a').value;x.s=$('#it-s').value;if($('#it-p'))x.p=$('#it-p').value;if($('#it-q'))x.q=$('#it-q').value.trim();x.c=c===''?null:Math.max(0,+c);x.n=$('#it-o').value.trim();if(x.s!==was){delete x.lg;slBy(cl,x)}
     if(isG(cl)){if(x.c!=null)S.prices[x.i.toLowerCase()]=x.c;if(x.s==='Purchased'&&was!=='Purchased')bought(x)}
     closeModal();save();refresh();toast(`${x.i} saved`);return}
   if(f.dataset.area){const v=f.querySelector('input').value.trim(),cl=curList(),area=f.dataset.area;if(!v)return;
@@ -2105,7 +2229,7 @@ function prepState(){
 }
 prepState();
 function startApp(){
-  jStop();jKeys();jLoad();jConnect();
+  jStop();jKeys();jLoad();slLoad();jConnect();
   cloudSync();
   paintAvatar();const autoPaid=payDueBills();const fb=$('#qafab');if(fb)fb.hidden=false;
   if(autoPaid.length)setTimeout(()=>toast(`Autopay: ${listAnd(autoPaid.map(b=>b.name))} recorded as paid`),1600);
