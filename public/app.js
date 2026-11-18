@@ -796,25 +796,36 @@ function sortRows(rows,pri){const rk=x=>x.s==='Need to Buy'?0:x.s==='Not Needed'
   return rows.map((x,k)=>[x,k]).sort((p,q)=>rk(p[0])-rk(q[0])||(pri?(PRORD[p[0].p]??1)-(PRORD[q[0].p]??1):0)||p[1]-q[1]).map(p=>p[0])}
 function itemRow(cl,x){
   const ok=isDone(x),cls=[ok?'done':'',x.s==='Purchased'?'bought':'',x.s==='Not Needed'?'dim':''].join(' ');
-  /* compact card: priority shows only when it is not the usual Medium; the note box only once there is a note */
+  const pr=x.p||'Medium',sub=cl.pri?`${pr} priority`:'';
+  /* item card: name and price on top, small detail line under each, status pills, then the note */
   return `<div class="irow ${cls}" data-name="${esc(x.i.toLowerCase())}" ${qHit(x)?'':'hidden'}>
    <button class="cb" data-tick="${x.id}" aria-pressed="${ok}" aria-label="${ok?'Mark as still to buy':'Mark as purchased'}: ${esc(x.i)}">${ic('check')}</button>
    <button class="inm" data-iedit="${x.id}" aria-label="Edit ${esc(x.i)}">${esc(x.i)}</button>
-   <label class="iprice"><span>G$</span><input type="number" inputmode="decimal" min="0" step="any" value="${x.c==null?'':x.c}" placeholder="—" style="--n:${String(x.c??'').length||1}" data-ck="${x.id}:c" aria-label="Estimated cost of ${esc(x.i)} in G$"></label>
+   ${sub?`<span class="isub">${esc(sub)}</span>`:''}
+   <button class="ipv ${x.c==null?'none':''}" data-price="${x.id}" aria-label="${x.c==null?'Add a price for':'Change the price of'} ${esc(x.i)}">${x.c==null?'G$0':gmoney(x.c)}</button>
+   <label class="iprice" hidden><span>G$</span><input type="number" inputmode="decimal" min="0" step="any" value="${x.c==null?'':x.c}" placeholder="0" data-ck="${x.id}:c" aria-label="Estimated cost of ${esc(x.i)} in G$"></label>
+   <span class="iest">${x.c==null?'Add price':'Estimated'}</span>
    <button class="imore" data-iedit="${x.id}" aria-label="More options for ${esc(x.i)}">${ic('kebab')}</button>
    <div class="ipills">
-    <span class="pp ${stCls(x.s)}"><select data-ck="${x.id}:s" aria-label="Status of ${esc(x.i)}">${STAT.map(o=>`<option ${o===x.s?'selected':''}>${o}</option>`).join('')}</select></span>
-    ${cl.pri&&x.p&&x.p!=='Medium'?`<span class="pp ${PRCLS[x.p]}"><select data-ck="${x.id}:p" aria-label="Priority of ${esc(x.i)}">${PRI.map(o=>`<option value="${o}" ${o===x.p?'selected':''}>${o}</option>`).join('')}</select></span>`:''}
-    ${cl.qty?`<label class="pp qty"><span>Qty</span><input data-ck="${x.id}:q" value="${esc(x.q||'')}" placeholder="1" maxlength="10" aria-label="Quantity of ${esc(x.i)}"></label>`:''}
-    ${x.n?'':`<button class="addnote" data-note="${x.id}">${ic('plus')}Note</button>`}
-    ${x.c!=null?'<span class="iest">Estimated</span>':''}
+    <button class="pp ${stCls(x.s)}" data-ipick="s:${x.id}" aria-label="Status: ${esc(x.s)}. Change">${esc(x.s)}</button>
+    ${cl.pri?`<button class="pp pr-${PRCLS[pr]}" data-ipick="p:${x.id}" aria-label="Priority: ${pr}. Change">${pr}</button>`:''}
+    ${cl.qty?`<button class="pp" data-iedit="${x.id}" data-focus="it-q" aria-label="Quantity: ${esc(x.q||'not set')}. Change">Qty ${esc(x.q||'1')}</button>`:''}
    </div>
-   <label class="inote" ${x.n?'':'hidden'}>${ic('edit')}<input value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Note for ${esc(x.i)}"></label>
+   ${x.n?`<label class="inote">${ic('edit')}<input value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Note for ${esc(x.i)}"></label>`
+     :`<button class="addnote" data-note="${x.id}">+ Add a note</button><label class="inote" hidden>${ic('edit')}<input value="" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Note for ${esc(x.i)}"></label>`}
   </div>`;
 }
+const gmoney=v=>'G$'+(+v).toLocaleString('en-US',{maximumFractionDigits:2});
+/* small bottom sheet to pick a status or priority (native dropdowns would force large text on iPhone) */
+function pickSheet(kind,id){
+  const cl=curList(),x=cl.items.find(r=>r.id==id);if(!x)return;
+  const opts=kind==='s'?STAT:PRI,cur=kind==='s'?x.s:(x.p||'Medium');
+  modal(`<h3>${kind==='s'?'Status':'Priority'}</h3><div class="hint">${esc(x.i)}</div><div class="morelist">${opts.map(o=>`<button data-set="${kind}:${x.id}:${esc(o)}" ${o===cur?'aria-current="page"':''}>${o===cur?`<span class="ico">${ic('check')}</span>`:'<span class="ico"></span>'}${esc(o)}</button>`).join('')}</div>`);
+}
 /* bottom sheet: everything about one item, including moving it to another section and deleting it */
-function itemSheet(id){
+function itemSheet(id,focus){
   const cl=curList(),x=cl.items.find(r=>r.id==id);if(!x)return;ui.idel=null;
+  if(focus)setTimeout(()=>{const f=$('#'+focus);if(f){f.focus();try{f.select()}catch(_){}}},80);
   const opt=(arr,cur,lab=o=>o)=>arr.map(o=>`<option value="${esc(o)}" ${o===cur?'selected':''}>${esc(lab(o))}</option>`).join('');
   modal(`<h3>Edit item</h3><form class="form" id="itemform" data-id="${x.id}" style="margin-top:12px">
    <label class="f">Name<input class="in" id="it-n" maxlength="50" required value="${esc(x.i)}"></label>
@@ -888,7 +899,7 @@ function checklist(){
     if(!vis.length&&f!=='All')return '';
     const done=rows.filter(isDone).length,hid=ui.q&&!vis.some(qHit);
     return `<div class="card chk" data-sec="${esc(a)}" ${hid?'hidden':''}>
-     <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<span class="ico">${ic(GIC[a]||'list')}</span><h3 class="secname">${esc(a)}</h3><span class="secct ${rows.length&&done===rows.length?'all':''}">${rows.length?`${done} / ${rows.length} done`:'Empty'}</span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('more')}</button></div>
+     <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<h3 class="secname">${esc(a)}</h3><span class="secct ${rows.length&&done===rows.length?'all':''}">${rows.length?`${done} / ${rows.length} completed`:'Empty'}</span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('kebab')}</button></div>
      ${vis.length?`<div class="ilist">${vis.map(x=>itemRow(cl,x)).join('')}</div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`}
      <form class="addrow additem" data-area="${esc(a)}"><input class="in" name="item" placeholder="${cl.qty?'Add items…':'Add an item…'}" maxlength="200" autocomplete="off" aria-label="New item for ${esc(a)}"><button class="btn dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
   const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length}))];
@@ -912,6 +923,8 @@ document.addEventListener('input',e=>{
   if(e.target.closest&&e.target.closest('.iprice')){e.target.style.setProperty('--n',e.target.value.length||1);return} /* price box grows with the number */
   if(e.target.id!=='chkq')return;ui.q=e.target.value.trim();applyQ()});
 /* an opened note box that is left empty folds back into the + Note button */
+/* price box left without a change goes back to showing the formatted price */
+document.addEventListener('focusout',e=>{const l=e.target.closest&&e.target.closest('.iprice');if(!l)return;const b=l.parentElement.querySelector('[data-price]');if(b&&l.isConnected){l.hidden=true;b.hidden=false}});
 document.addEventListener('focusout',e=>{const n=e.target.closest&&e.target.closest('.inote');if(!n||e.target.value.trim())return;const b=n.closest('.irow')?.querySelector('[data-note]');if(b){n.hidden=true;b.hidden=false}});
 /* ---------- core helpers, profile and buying plan ---------- */
 const PKEY='pairwise-profiles';
@@ -1680,7 +1693,12 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-secdel]');if(el){const a=el.dataset.secdel,cl=curList(),n=cl.items.filter(x=>x.a===a).length;
     if(n&&ui.secDel!==a){ui.secDel=a;secMenu(a);return}
     ui.secDel=null;cl.items=cl.items.filter(x=>x.a!==a);cl.groups=cl.groups.filter(g=>g!==a);closeModal();save();refresh();toast(n?`${a} and its ${n} item${n===1?'':'s'} deleted`:`${a} deleted`);return}
-  el=t.closest('[data-iedit]');if(el){itemSheet(el.dataset.iedit);return}
+  el=t.closest('[data-iedit]');if(el){itemSheet(el.dataset.iedit,el.dataset.focus);return}
+  el=t.closest('[data-ipick]');if(el){const [k,id]=el.dataset.ipick.split(':');pickSheet(k,id);return}
+  el=t.closest('[data-set]');if(el){const [k,id,...rest]=el.dataset.set.split(':'),v=rest.join(':'),cl=curList(),r=cl.items.find(x=>x.id==id);closeModal();if(!r)return;
+    if(k==='s'){const was=r.s;r.s=v;if(v!==was)delete r.lg;if(isG(cl)&&v==='Purchased'&&was!=='Purchased')bought(r)}else r.p=v;
+    save();refresh();return}
+  el=t.closest('[data-price]');if(el){const l=el.parentElement.querySelector('.iprice');if(l){el.hidden=true;l.hidden=false;const i=l.querySelector('input');i.focus();try{i.select()}catch(_){}}return}
   el=t.closest('[data-note]');if(el){const r=el.closest('.irow'),n=r&&r.querySelector('.inote');if(n){el.hidden=true;n.hidden=false;n.querySelector('input').focus()}return}
   el=t.closest('[data-again]');if(el){const cl=curList(),tr=(cl.trips||[])[+el.dataset.again];if(!tr||!tr.it)return;const ar=secAreas(cl);let add=0,skip=0;
     tr.it.forEach((x,k)=>{const key=x.i.toLowerCase(),ex=cl.items.find(r=>r.i.toLowerCase()===key);
