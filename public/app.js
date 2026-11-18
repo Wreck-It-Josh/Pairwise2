@@ -574,7 +574,7 @@ function budgetCard(k,b,ro){
     <div class="row" style="gap:10px;flex-wrap:wrap">${ro?'<span></span>':`<label class="limit">Monthly limit<input type="number" inputmode="decimal" min="1" step="1000" value="${Math.round(b.limit)}" data-limit="${k}" aria-label="${k} limit"></label>`}<button class="link" data-drill="${k}">View expenses</button></div></div>`;
 }
 function aptCard(){
-  const L=S.check,live=L.filter(x=>x.s!=='Not Needed'),spent=sum(L.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),plan=sum(live.map(x=>+x.c||0));
+  const L=aptL(),live=L.filter(x=>x.s!=='Not Needed'),spent=sum(L.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),plan=sum(live.map(x=>+x.c||0));
   const need=L.filter(x=>x.s==='Need to Buy'),priced=need.filter(x=>+x.c>0).sort((a,b)=>b.c-a.c),unpriced=need.length-priced.length;
   const toBuy=sum(priced.map(x=>+x.c)),bought=L.filter(x=>x.s==='Purchased'||x.s==='Already Have').length;
   return `<div class="card" style="margin-bottom:16px"><div class="apt"><div>
@@ -854,7 +854,7 @@ function listMenu(){
    ${b('lbudget','coin',cl.budget!=null?'Change budget':'Set a budget')}
    ${b('history','clock',`Shopping history${tr?` · ${tr} trip${tr===1?'':'s'}`:''}`)}
    ${b('share','send','Send as text')}
-   ${!SB||apt?'':cl.shared?(ui.unshare?b('unshare-yes','users',`Tap again to stop sharing. You keep a private copy; it is removed for ${esc(SL.partner||'your partner')}`,1):b('unshare','users','Stop sharing')):b('sharelist','users',SL.hh?`Share with ${esc(SL.partner||'your partner')}`:'Share with your partner')}
+   ${!SB?'':cl.shared?(ui.unshare?b('unshare-yes','users',apt?'Tap again to stop sharing. You each keep your own copy':`Tap again to stop sharing. You keep a private copy; it is removed for ${esc(SL.partner||'your partner')}`,1):b('unshare','users','Stop sharing')):b('sharelist','users',SL.hh?`Share with ${esc(SL.partner||'your partner')}`:'Share with your partner')}
    ${!apt&&done?(ui.fresh?b('fresh-yes','refresh',`Tap again to set ${done} ticked item${done===1?'':'s'} back to Need to buy`,1):b('fresh','refresh','Start fresh')):''}
    ${apt?'':ui.delc?b('dellist-yes','trash',`Tap again to delete this list and its ${cl.items.length} item${cl.items.length===1?'':'s'}${cl.shared?' for both of you':''}`,1):b('dellist','trash','Delete list')}
   </div>`);
@@ -905,14 +905,17 @@ function checklist(){
      <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<h3 class="secname">${esc(a)}</h3><span class="secct ${rows.length&&done===rows.length?'all':''}">${rows.length?`${done} / ${rows.length} completed`:'Empty'}</span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('kebab')}</button></div>
      ${vis.length?`<div class="ilist">${vis.map(x=>itemRow(cl,x)).join('')}</div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`}
      <form class="addrow additem" data-area="${esc(a)}"><input class="in" name="item" placeholder="${cl.qty?'Add items…':'Add an item…'}" maxlength="200" autocomplete="off" aria-label="New item for ${esc(a)}"><button class="btn dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
-  const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length})),...SL.lists.map(l=>({id:l.id,name:l.name,n:l.items.length,sh:1}))];
+  const lists=[{id:'apt',name:'Apartment',n:aptL().length,sh:aptShared()?1:0},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length})),...SL.lists.filter(l=>l.id!=='apt').map(l=>({id:l.id,name:l.name,n:l.items.length,sh:1}))];
   const sw=`<div class="lsw" role="tablist" aria-label="Lists">${lists.map(l=>`<button class="ltab ${l.sh?'sh':''}" role="tab" aria-selected="${l.id===cl.id}" data-list="${l.id}">${l.sh?`${ic('users')}<span class="vh">Shared: </span>`:''}<span>${esc(l.name)}</span><em>${l.n}</em></button>`).join('')}<button class="ltab add" data-act="newlist">${ic('plus')}New list</button></div>`;
   const newForm=ui.newList?`<form class="card" id="newlistform" style="margin-bottom:16px"><h3>Create a list</h3><div class="two form"><label class="f">Name<input class="in" id="nlname" maxlength="30" placeholder="e.g. Pharmacy run" required></label><label class="f">Start from<select class="in" id="nltpl"><option value="groceries">Groceries (6 sections, quantity)</option><option value="market">Market day (Guyanese staples)</option><option value="blank">Blank list (one section, priority)</option></select></label></div>${SL.hh?`<label class="shchk"><input type="checkbox" id="nlshare" checked> Share with ${esc(SL.partner||'your partner')}: you both see it and changes show up live</label>`:''}<div class="btns"><button class="btn dark" type="submit">${ic('plus')}Create list</button><button class="btn" type="button" data-act="newlist">Cancel</button></div></form>`:'';
   const search=`<label class="chkq">${ic('search')}<input id="chkq" type="search" placeholder="Search items…" value="${esc(ui.q||'')}" autocomplete="off" aria-label="Search items"></label>`;
   const anyHit=!ui.q||L.some(x=>qHit(x)&&(f==='All'||x.s===f));
   const empty=`<div class="card emptyst" id="chkempty" ${cards&&anyHit?'hidden':''}>${ui.q?`Nothing matches "${esc(ui.q)}".`:f==='All'?'Nothing here yet. Add a section below to start.':`No items marked ${esc(STSHORT[f]||f).toLowerCase()}.`}</div>`;
   const secAdd=ui.secAdd?`<form class="addrow secadd" id="secform"><input class="in" name="sec" placeholder="${apt?'e.g. Balcony':'e.g. Frozen'}" maxlength="30" aria-label="New section name" required><button class="btn sm dark" type="submit">${ic('plus')}Add section</button><button class="btn sm" type="button" data-act="secadd">Cancel</button></form>`:`<button class="secaddbtn" data-act="secadd">${ic('plus')}Add section</button>`;
-  const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}">${listHead(cl)}${shareCard(cl)}${g?gExtras(cl):''}${apt?planCard():''}
+  /* partner's side of a shared apartment: offer once to add items from their own list that are not on it yet */
+  const mine=apt&&cl.shared&&!S.aptMerged?(S.check||[]).filter(x=>!cl.items.some(y=>y.i.toLowerCase()===x.i.toLowerCase())):[];
+  const merge=mine.length?`<div class="card mergecard"><h3><span class="ico">${ic('users')}</span>Add your own apartment items?</h3><div class="hint">Before sharing, your own Apartment checklist had ${mine.length} item${mine.length===1?'':'s'} that ${mine.length===1?'is':'are'} not on the shared one, like ${esc(mine.slice(0,3).map(x=>x.i).join(', '))}.</div><div class="btns" style="margin:12px 0 0"><button class="btn sm dark" data-act="aptmerge">Add ${mine.length===1?'it':'them'}</button><button class="btn sm" data-act="aptmerge-no">No thanks</button></div></div>`:'';
+  const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}">${listHead(cl)}${merge}${shareCard(cl)}${g?gExtras(cl):''}${apt?planCard():''}
   <div class="chkbar">${search}<div class="tabs" role="tablist" aria-label="Filter by status">${tabs}</div></div>${cards}${empty}${finishCard(cl)}
   ${secAdd}</div>`;
   ui.lanim=false;return out;
@@ -980,8 +983,8 @@ const guessP=x=>GUIDE[(x.i||'').toLowerCase()]||null;
 const PRIR={High:0,Medium:1,Low:2};
 function tierOf(x){if(x.a==='Gaming / Entertainment Room')return 3;if(/rug|lamp|light|wall|decor|artwork|mirror|storage|shelf|shelving|bookshelf|towel rack|air freshener|cable|table mats/i.test(x.i))return 2;return 1}
 function buildPlan(){
-  const ap=S.aptPlan,g=(S.goals||[]).find(g=>/apartment/i.test(g.n)),cash=ap.cash==null?(g?g.s:0):+ap.cash,mo=Math.max(0,+ap.monthly||0);
-  const need=S.check.filter(x=>x.s==='Need to Buy');
+  const ap=aptP(),g=(S.goals||[]).find(g=>/apartment/i.test(g.n)),cash=ap.cash==null?(g?g.s:0):+ap.cash,mo=Math.max(0,+ap.monthly||0);
+  const need=aptL().filter(x=>x.s==='Need to Buy');
   const priced=need.filter(x=>+x.c>0).sort((a,b)=>(PRIR[a.p]-PRIR[b.p])||(tierOf(a)-tierOf(b))||(a.c-b.c)),unp=need.filter(x=>!(+x.c>0));
   let cum=0;const rows=priced.map(x=>{cum+=+x.c;return {x,cum,k:cum<=cash?0:(mo>0?Math.ceil((cum-cash)/mo):null)}});
   return {cash,mo,rows,unp,total:cum};
@@ -1263,9 +1266,9 @@ async function hhAction(kind,code){
     else if(kind==='join'){const {error}=await SB.rpc('join_household',{p_code:code});if(error)throw error}
     else if(kind==='leave'){
       /* shared lists become private copies, since after leaving they can no longer be reached */
-      const keep=SL.lists.map((l,i)=>{const c={...l,id:'l'+Date.now()+i,items:l.items.map(x=>({...x}))};delete c.shared;delete c.ts;return c});
+      const apt=aptShared(),keep=SL.lists.filter(l=>l.id!=='apt').map((l,i)=>{const c={...l,id:'l'+Date.now()+i,items:l.items.map(x=>({...x}))};delete c.shared;delete c.ts;return c});
       const {error}=await SB.rpc('leave_household');if(error)throw error;
-      slStop(true);if(keep.length){S.lists.push(...keep);save()}
+      slStop(true);if(apt)aptToPrivate(apt);if(keep.length)S.lists.push(...keep);if(apt||keep.length)save();
       jStop();J.plans={};J.moves={};jCache();try{localStorage.removeItem(JUP)}catch(e){}
       J.sbReady=true;ui.hhleave=false;refresh();toast('You left the household');return;
     }
@@ -1317,7 +1320,7 @@ function canon(v){
   if(v&&typeof v==='object')return '{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
   return v===undefined?'null':JSON.stringify(v);
 }
-const slMeta=l=>({name:l.name,type:l.type,pri:!!l.pri,qty:!!l.qty,groups:l.groups||[],budget:l.budget??null,trips:(l.trips||[]).slice(0,20),ts:l.ts||0});
+const slMeta=l=>({name:l.name,type:l.type,pri:!!l.pri,qty:!!l.qty,groups:l.groups||[],budget:l.budget??null,trips:(l.trips||[]).slice(0,20),ts:l.ts||0,plan:l.plan}); // plan: the apartment buying plan (undefined, so left out, on other lists)
 const slItem=(l,x)=>{const d={...x};delete d.id;d.list=l.id;return d};
 function slWant(){const w={};SL.lists.forEach(l=>{w['L:'+l.id]=canon(slMeta(l));l.items.forEach(x=>{w['I:'+x.id]=canon(slItem(l,x))})});return w}
 function slBuild(m){
@@ -1378,7 +1381,10 @@ async function slPull(){
     }
     for(const k in want)if(!(k in remote)&&!(k in SL.last))m[k]=want[k]; // added here, not sent yet
     const ev=fresh?[]:slEvents(remote,want,m); // a phone seeing the lists for the first time stays quiet
+    const hadApt=aptShared();
     SL.last=remote;slBuild(m);SL.state='live';slCache();
+    /* the partner stopped sharing the apartment: keep what it had as this person's own list again */
+    if(hadApt&&!aptShared()){aptToPrivate(hadApt);save();toast(`${SL.partner||'Your partner'} stopped sharing the Apartment checklist. You keep a copy`,4500)}
     slNotify(ev);
     changed=canon(slWant())!==before;
   }catch(e){if(SL.hh===hh)SL.state='stale'}finally{SL.busy=false}
@@ -1411,6 +1417,12 @@ async function slConnect(hh){
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'shared_lists'},go).on('postgres_changes',{event:'DELETE',schema:'public',table:'shared_items'},go)
     .subscribe(s=>{if(s==='SUBSCRIBED')go();else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT'){SL.state='stale'}});
 }
+/* the Apartment checklist: the shared copy (fixed id 'apt') when the household shares it, otherwise your own */
+const aptShared=()=>SL.lists.find(l=>l.id==='apt')||null;
+const aptL=()=>{const a=aptShared();return a?a.items:(S.check||[])};
+const aptP=()=>{const a=aptShared();if(a)return a.plan||(a.plan={monthly:0,cash:null});return S.aptPlan||(S.aptPlan={monthly:0,cash:null})};
+/* back to a private apartment list, carrying over everything from the shared one */
+function aptToPrivate(a){S.aptMerged=false;S.check=a.items.map(x=>({...x}));S.aptGroups=[...(a.groups||[])];S.aptBud=a.budget??null;S.aptTrips=[...(a.trips||[])];if(a.plan)S.aptPlan={...a.plan}}
 /* who ticked it off, shown to the other person */
 const slBy=(cl,r)=>{if(cl.shared&&user&&user.id)r.by=user.id};
 /* what the partner did, worked out from a pull: only changes that came from them and were accepted here */
@@ -1670,7 +1682,7 @@ function reply(q){
   if(/budget|limit|over/.test(q))return insight(false);
   if(/income|earn|made/.test(q))return `Income this month is ${fmt(PER.month.income())}, which leaves a net profit of ${fmt(PER.month.income()-spentTotal())}.`;
   if(/grocer/.test(q)){const g=S.lists.find(l=>l.type==='groceries');if(!g)return 'You do not have a groceries list yet. Open the Checklist tab and tap New list.';const n=g.items.filter(x=>x.s==='Need to Buy');return n.length?`Your groceries list has ${n.length} item${n.length===1?'':'s'} left to buy, ${fmt(sum(n.map(x=>+x.c||0)),'G$')} estimated.`:'Your groceries list has nothing left to buy.'}
-  if(/checklist|apartment|furnit|shopping|to buy/.test(q)){const n=S.check.filter(x=>x.s==='Need to Buy');return `Your apartment checklist has ${S.check.length} items: ${n.length} still to buy, ${S.check.filter(x=>x.s==='Purchased').length} purchased and ${S.check.filter(x=>x.s==='Already Have').length} you already have. Estimated budget is ${fmt(sum(S.check.map(x=>+x.c||0)),'G$')}.`}
+  if(/checklist|apartment|furnit|shopping|to buy/.test(q)){const A=aptL(),n=A.filter(x=>x.s==='Need to Buy');return `Your apartment checklist has ${A.length} items: ${n.length} still to buy, ${A.filter(x=>x.s==='Purchased').length} purchased and ${A.filter(x=>x.s==='Already Have').length} you already have. Estimated budget is ${fmt(sum(A.map(x=>+x.c||0)),'G$')}.`}
   if(/mmg|paypal/.test(q))return 'This app is not connected to MMG or PayPal. On the Transfer tab you can record what you send or receive through them, and I will keep your balances and totals up to date.';
   if(/transfer|send/.test(q))return 'You can send money from the Transfer tab. Pick a recipient, enter an amount and send.';
   return 'I can help with your balance, spending, bills, budgets and savings goals. Try one of the suggestions below.';
@@ -1743,7 +1755,7 @@ function aiContext(){
   if(S.goals&&S.goals.length){L.push('GOALS:');S.goals.forEach(g=>L.push(`- ${g.n}: ${fmt0(g.s)} saved of ${fmt0(g.t)}`))}
   const bills=(S.bills||[]).filter(b=>!b.paid);if(bills.length){L.push('BILLS COMING UP:');bills.forEach(b=>L.push(`- ${b.name} ${fmt(b.amt)} due ${b.due}${b.auto?' (auto-pay)':''}`))}
   L.push('RECENT TRANSACTIONS (newest first):');(S.tx||[]).slice(0,14).forEach(t=>{const w='';L.push(`- ${txDate(t)}: ${t.n} (${t.c}) ${fmt(t.a)}${w?' by '+w:''}`)});
-  const ck=S.check||[],need=ck.filter(x=>x.s==='Need to Buy');
+  const ck=aptL(),need=ck.filter(x=>x.s==='Need to Buy');
   L.push(`APARTMENT SETUP: ${ck.length} items; ${need.length} still to buy, ${ck.filter(x=>x.s==='Purchased').length} purchased, ${ck.filter(x=>x.s==='Already Have').length} already have. Estimated cost of priced items still to buy: ${fmt(sum(need.map(x=>+x.c||0)),'G$')}; ${need.filter(x=>x.c==null).length} to-buy items have no price yet. Spent on purchased items: ${fmt(sum(ck.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),'G$')}.`);
   L.push('APARTMENT ITEMS STILL TO BUY:');need.slice(0,40).forEach(x=>L.push(`- ${x.i} (${x.a})${x.c?`, est ${fmt(x.c,'G$')}`:', no price yet'}`));
   (S.lists||[]).forEach(l=>{
@@ -1832,7 +1844,7 @@ document.addEventListener('click',e=>{
   el=t.closest('[data-rail]');if(el){keepForm(()=>{ui.rail=el.dataset.rail;refresh()});return}
   el=t.closest('[data-dir]');if(el){keepForm(()=>{ui.dir=el.dataset.dir;refresh()});return}
   el=t.closest('[data-list]');if(el){ui.list=el.dataset.list;ui.shop=false;ui.fin=false;ui.share=false;ui.chk='All';ui.q='';ui.secAdd=false;ui.ren=false;ui.delc=false;ui.newList=false;ui.lanim=true;refresh();return}
-  el=t.closest('[data-use]');if(el){const [id,pr]=el.dataset.use.split(':'),x=S.check.find(r=>r.id==id);if(x){x.c=+pr;save();refresh()}return}
+  el=t.closest('[data-use]');if(el){const [id,pr]=el.dataset.use.split(':'),x=aptL().find(r=>r.id==id);if(x){x.c=+pr;save();refresh()}return}
   el=t.closest('[data-pcol]');if(el){const all=ldj(PKEY,{}),k=(user.email||'').toLowerCase(),p=prof();all[k]={...p,color:el.dataset.pcol};svj(PKEY,all);paintAvatar();$$('[data-pcol]').forEach(x=>x.setAttribute('aria-pressed',x===el));const pa=$('.pfav');if(pa)pa.style.background=el.dataset.pcol;return}
   el=t.closest('[data-qt]');if(el){openQuick(el.dataset.qt);return}
   el=t.closest('[data-idea]');if(el){ui.idea=el.dataset.idea;refresh();return}
@@ -1889,7 +1901,7 @@ document.addEventListener('click',e=>{
   if(a==='avatar'){const p=$('#userpop');p.hidden=!p.hidden;$('#bellpop').hidden=true;p.innerHTML=`<h4>${esc((prof()&&prof().name)||(user&&user.name)||'Guest')}</h4><div class="n"><span class="ico">${ic('mail')}</span><div><b style="word-break:break-all">${esc((user&&user.email)||'')}</b><span>Signed in on this device</span></div></div><button class="btn sm dark" style="width:100%;justify-content:center;margin-top:6px" data-act="profile">Profile settings</button><button class="btn sm" style="width:100%;justify-content:center;margin-top:6px" data-act="logout">Sign out</button>`;return}
   if(a==='logout'){try{localStorage.removeItem(SKEY)}catch(e){}if(SB){if(cloudT)cloudPush(true);cloud=null;jStop();SB.auth.signOut().catch(()=>{})}user=null;$('#qafab').hidden=true;$('#userpop').hidden=true;$('#bellpop').hidden=true;openChat(false);$('#msgs').innerHTML='';showAuth('login');return}
   if(a==='plantoggle'){ui.planOpen=ui.planOpen===false;refresh();return}
-  if(a==='planguess'){let n=0;S.check.forEach(x=>{if(x.s==='Need to Buy'&&!(+x.c>0)&&guessP(x)){x.c=guessP(x);n++}});save();refresh();toast(`${n} rough estimates filled in. Replace them with real prices as you find them.`);return}
+  if(a==='planguess'){let n=0;aptL().forEach(x=>{if(x.s==='Need to Buy'&&!(+x.c>0)&&guessP(x)){x.c=guessP(x);n++}});save();refresh();toast(`${n} rough estimates filled in. Replace them with real prices as you find them.`);return}
   if(a==='planall'){ui.planAll=!ui.planAll;refresh();return}
   if(a==='planai'){const pl=buildPlan();aiInto('plan','Review our apartment buying plan using the APARTMENT BUYING PLAN and budget numbers in DATA. In under 120 words: is the monthly amount realistic for us, what should we buy first, and one practical way to keep costs down.',`You have ${fmt(pl.cash,'G$')} saved and add ${fmt(pl.mo,'G$')} a month. The priced items total ${fmt(pl.total,'G$')}, and ${pl.unp.length} items still need a price.`);return}
   if(a==='shop'){closeModal();ui.shop=true;ui.fin=false;ui.share=false;refresh();window.scrollTo({top:0});return}
@@ -1898,11 +1910,22 @@ document.addEventListener('click',e=>{
   if(a==='lmenu'){ui.delc=false;ui.fresh=false;ui.unshare=false;listMenu();return}
   if(a==='sharelist'){closeModal();
     if(!SL.hh){go('joint');toast('Link with your partner here first, then share the list');return}
-    const cl=curList();if(cl.type==='apt'||cl.shared)return;
-    S.lists=S.lists.filter(l=>l!==cl);const l={...cl,shared:true,ts:Date.now()};SL.lists.push(l);ui.list=l.id;
+    const cl=curList();if(cl.shared)return;let l;
+    if(cl.type==='apt'){
+      /* the apartment list becomes the household's: items, sections, budget, history and the buying plan */
+      l={id:'apt',name:'Apartment',type:'apt',pri:true,qty:false,groups:[...secAreas(cl)],budget:S.aptBud??null,trips:[...(S.aptTrips||[])],plan:{...aptP()},items:S.check.map(x=>({...x})),shared:true,ts:Date.now()};
+      S.aptMerged=true;
+    }else{S.lists=S.lists.filter(x=>x!==cl);l={...cl,shared:true,ts:Date.now()}}
+    SL.lists.push(l);ui.list=l.id;
     save();refresh();toast(`${l.name} is now shared with ${SL.partner||'your partner'}`);return}
   if(a==='unshare'){ui.unshare=true;listMenu();return}
+  if(a==='aptmerge'||a==='aptmerge-no'){const sh=aptShared();S.aptMerged=true;
+    if(a==='aptmerge'&&sh){const have=new Set(sh.items.map(y=>y.i.toLowerCase())),t=Date.now();let n=0;
+      (S.check||[]).forEach(x=>{if(have.has(x.i.toLowerCase()))return;const c={...x,id:t+n};delete c.by;delete c.cb;delete c.lg;sh.items.push(c);have.add(x.i.toLowerCase());n++});
+      save();refresh();toast(`${n} item${n===1?'':'s'} added to the shared Apartment checklist`);return}
+    save();refresh();return}
   if(a==='unshare-yes'){const cl=curList();if(!cl.shared)return;closeModal();
+    if(cl.id==='apt'){aptToPrivate(cl);SL.lists=SL.lists.filter(l=>l!==cl);ui.unshare=false;save();refresh();toast('Stopped sharing. You both keep your own copy');return}
     const c={...cl,id:'l'+Date.now(),items:cl.items.map(x=>({...x}))};delete c.shared;delete c.ts;
     SL.lists=SL.lists.filter(l=>l!==cl);S.lists.push(c);ui.list=c.id;ui.unshare=false;save();refresh();toast('Stopped sharing. You have a private copy');return}
   if(a==='lbudget'){budgetSheet();return}
@@ -1961,7 +1984,7 @@ document.addEventListener('change',e=>{
   const cf=e.target.closest('[data-cfixed]');
   if(cf){const k=cf.dataset.cfixed;if(S.budget[k]){S.budget[k].fixed=cf.checked;catsChanged(cf.checked?`${k} is now a fixed cost`:`${k} now counts in Safe to spend`)}return}
   const ap=e.target.closest('[data-aplan]');
-  if(ap){S.aptPlan[ap.dataset.aplan]=Math.max(0,+ap.value||0);save();refresh();return}
+  if(ap){aptP()[ap.dataset.aplan]=Math.max(0,+ap.value||0);save();refresh();return}
   const gb=e.target.closest('[data-gbud]');
   if(gb){curList().budget=gb.value===''?null:Math.max(0,+gb.value);save();refresh();toast('Budget updated');return}
   const l=e.target.closest('[data-limit]');
