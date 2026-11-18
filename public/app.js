@@ -55,7 +55,7 @@ const fmt0=n=>'G$'+Math.round(n).toLocaleString('en-US');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sum=a=>a.reduce((x,y)=>x+y,0);
-function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2200)}
+function toast(t,ms=2200){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),ms)}
 
 /* ---------- state ---------- */
 let KEY='pairwise-budget-v2';
@@ -1338,6 +1338,8 @@ function slSchedule(){if(!SL.hh)return;slCache();clearTimeout(SL.t);SL.t=setTime
 async function slPush(){
   if(!SB||!SL.hh)return;
   if(SL.busy){SL.again=true;return}
+  /* items added on this phone are marked with who added them, so the partner can be told */
+  if(user&&user.id)SL.lists.forEach(l=>l.items.forEach(x=>{if(!x.cb&&!SL.last['I:'+x.id])x.cb=user.id}));
   const want=slWant(),up=Object.keys(want).filter(k=>SL.last[k]!==want[k]),del=Object.keys(SL.last).filter(k=>!(k in want));
   if(!up.length&&!del.length)return;
   SL.busy=true;const hh=SL.hh,now=new Date().toISOString();
@@ -1368,14 +1370,16 @@ async function slPull(){
     const [a,b]=await Promise.all([SB.from('shared_lists').select('id,data').eq('household_id',hh),SB.from('shared_items').select('id,data').eq('household_id',hh)]);
     if(a.error)throw a.error;if(b.error)throw b.error;if(SL.hh!==hh)return;
     const remote={};a.data.forEach(r=>{remote['L:'+r.id]=canon(r.data)});b.data.forEach(r=>{remote['I:'+r.id]=canon(r.data)});
-    const want=slWant(),before=canon(want),m={};
+    const want=slWant(),before=canon(want),m={},fresh=!Object.keys(SL.last).length&&!Object.keys(want).length;
     for(const k in remote){
       if(k in want)m[k]=SL.last[k]!==want[k]?want[k]:remote[k];   // changed here and not sent yet: keep ours
       else if(!(k in SL.last))m[k]=remote[k];                      // new from the partner
       /* else: deleted here, not sent yet. Leave it out; the next push deletes it */
     }
     for(const k in want)if(!(k in remote)&&!(k in SL.last))m[k]=want[k]; // added here, not sent yet
+    const ev=fresh?[]:slEvents(remote,want,m); // a phone seeing the lists for the first time stays quiet
     SL.last=remote;slBuild(m);SL.state='live';slCache();
+    slNotify(ev);
     changed=canon(slWant())!==before;
   }catch(e){if(SL.hh===hh)SL.state='stale'}finally{SL.busy=false}
   if(changed||(ps!==SL.state&&SL.lists.length))slRefresh();
@@ -1409,6 +1413,37 @@ async function slConnect(hh){
 }
 /* who ticked it off, shown to the other person */
 const slBy=(cl,r)=>{if(cl.shared&&user&&user.id)r.by=user.id};
+/* what the partner did, worked out from a pull: only changes that came from them and were accepted here */
+function slEvents(remote,want,m){
+  const me=user&&user.id,out=[];
+  for(const k in remote){
+    if(m[k]!==remote[k]||want[k]===remote[k])continue;
+    const d=JSON.parse(remote[k]),o=want[k]?JSON.parse(want[k]):null,isNew=!o&&!(k in SL.last);
+    if(k[0]==='L'){if(isNew)out.push({s:`shared a new list: ${d.name}`,list:''});continue}
+    const ln=(JSON.parse(m['L:'+d.list]||'null')||{}).name||'',it=String(d.i||'').toLowerCase();
+    if(isNew){if(d.cb&&d.cb!==me)out.push({s:`added ${it}`,list:ln});continue}
+    if(o&&o.s!==d.s&&d.by&&d.by!==me){
+      if(d.s==='Purchased')out.push({s:`bought ${it}`,list:ln});
+      else if(d.s==='Already Have')out.push({s:`already has ${it}`,list:ln});
+    }
+  }
+  return out;
+}
+const SLN=()=>'pairwise-shnotes:'+((user&&user.id)||'');
+function slNotify(ev){
+  if(!ev.length||!user||!user.id)return;
+  const nm=SL.partner||'Your partner',all=ldj(SLN(),[]),now=Date.now();
+  ev.forEach(e=>all.unshift({t:`${nm} ${e.s}`,l:e.list,ts:now}));svj(SLN(),all.slice(0,30));
+  const lists=[...new Set(ev.map(e=>e.list).filter(Boolean))];
+  const msg=ev.length<=2?`${nm} ${ev.map(e=>e.s).join(' and ')}`:`${nm} ${ev.slice(0,2).map(e=>e.s).join(', ')} and ${ev.length-2} more`;
+  toast(msg+(lists.length===1?` · ${lists[0]}`:''),4500);
+  $('.round[data-act="bell"]')?.classList.add('fresh');
+}
+const ago=ts=>{const s=(Date.now()-ts)/1000;return s<60?'Just now':s<3600?`${Math.floor(s/60)} min ago`:s<86400?`${Math.floor(s/3600)} h ago`:`${Math.floor(s/86400)} d ago`};
+function slNotesHTML(){
+  const n=ldj(SLN(),[]).filter(x=>Date.now()-x.ts<3*864e5).slice(0,6);
+  return n.map(x=>`<div class="n"><span class="ico">${ic('users')}</span><div><b>${esc(x.t)}</b><span>${x.l?esc(x.l)+' · ':''}${ago(x.ts)}</span></div></div>`).join('');
+}
 function jMove(pid,amt,out,note,fromMain){
   const id=jid('m'),ts=Date.now(),a=out?-amt:amt;
   if(fromMain){const sc=savCat();S.acc.GYD=+(S.acc.GYD-a).toFixed(2);if(!out&&sc)S.budget[sc].spent=+(S.budget[sc].spent+amt).toFixed(2);
@@ -1845,7 +1880,7 @@ document.addEventListener('click',e=>{
   const a=el.dataset.act;
   if(a==='goals'){if(t.closest('[data-act="addgoal"]'))return;ui.goalsOpen=!ui.goalsOpen;refresh();return}
   if(a==='addgoal'){e.stopPropagation();ui.goalsOpen=true;refresh();setTimeout(()=>$('#gname')?.focus(),50);return}
-  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=Object.entries(S.budget).filter(([k,x])=>!x.fixed&&x.limit>0).sort((a,b)=>b[1].spent/b[1].limit-a[1].spent/a[1].limit)[0],inc=(S.tx||[]).find(t=>t.c==='Income');p.innerHTML=`<h4>Notifications</h4>${remAlerts().map(x=>`<div class="n"><span class="ico">${ic(CAL_KINDS[x.r.kind||'rem'][1])}</span><div><b>${esc(x.r.t)}</b><span>${remWhen(x)}${x.r.amt?' · '+fmt0(x.r.amt):''}</span></div></div>`).join('')}${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>${esc(en[0])} is at ${Math.round(en[1].spent/en[1].limit*100)}% of its limit</b><span>${fmt(en[1].limit-en[1].spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
+  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=Object.entries(S.budget).filter(([k,x])=>!x.fixed&&x.limit>0).sort((a,b)=>b[1].spent/b[1].limit-a[1].spent/a[1].limit)[0],inc=(S.tx||[]).find(t=>t.c==='Income');el.classList.remove('fresh');p.innerHTML=`<h4>Notifications</h4>${slNotesHTML()}${remAlerts().map(x=>`<div class="n"><span class="ico">${ic(CAL_KINDS[x.r.kind||'rem'][1])}</span><div><b>${esc(x.r.t)}</b><span>${remWhen(x)}${x.r.amt?' · '+fmt0(x.r.amt):''}</span></div></div>`).join('')}${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>${esc(en[0])} is at ${Math.round(en[1].spent/en[1].limit*100)}% of its limit</b><span>${fmt(en[1].limit-en[1].spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
   if(a==='theme'){const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);S.theme=nx;save();try{localStorage.setItem(DEV_THEME,nx)}catch(e){}return}
   if(a==='more'){openMore();return}
   if(a==='addrem'){const f=$('#rm-t');if(f){f.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});f.focus({preventScroll:true})}return}
