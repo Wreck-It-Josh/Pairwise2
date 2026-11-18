@@ -35,7 +35,10 @@ With a free Supabase project the app gets real accounts, a cloud backup of each 
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor > New query**, paste all of [`supabase/schema.sql`](supabase/schema.sql), and click **Run**.
-   Then do the same with [`supabase/shared-lists.sql`](supabase/shared-lists.sql) (lists shared between partners).
+   Then do the same with [`supabase/shared-lists.sql`](supabase/shared-lists.sql) (lists shared between partners)
+   and [`supabase/push.sql`](supabase/push.sql) (lock-screen notifications).
+   For notifications, also add `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to Netlify's environment variables
+   (an ES256 / P-256 key pair in the usual web-push base64url format; the private key never goes in the code).
 
 **2. Connect the app**
 
@@ -117,6 +120,10 @@ pairwise/
 ├── netlify/functions/cleo.mjs  # Cleo's AI answers (checks Supabase login, calls Claude)
 ├── supabase/schema.sql # database tables, security rules and household functions
 ├── supabase/shared-lists.sql # shared shopping lists between partners (run after schema.sql)
+├── supabase/push.sql   # lock-screen notification subscriptions (run after schema.sql)
+├── netlify/functions/rates.mjs  # /api/rates: live exchange rates for the Wallet (cached)
+├── netlify/functions/notify.mjs # /api/notify: sends lock-screen notifications to your partner
+├── public/sw.js        # service worker that shows those notifications (no page caching)
 ├── netlify.toml        # Netlify settings (publish public/, no build)
 ├── server.js           # tiny static server, Node built-ins only
 ├── start.sh            # starts the app with Node or Python

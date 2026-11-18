@@ -46,10 +46,12 @@ const P={
   edit:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-  kebab:'<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>'
+  kebab:'<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
+  bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'
 };
 const ic=(n,cls='')=>`<svg class="ic ${cls}" viewBox="0 0 24 24">${P[n]||''}</svg>`;
-const GY=209; /* G$ per US$1; every stored amount is in G$, rates are per US$1 */
+const GY0=209; /* the fixed G$ per US$1 used before live rates; also converts very old saved data */
+let GY=GY0; /* G$ per US$1, live when /api/rates answers; every stored amount is in G$, rates are per US$1 */
 const fmt=(n,c)=>{if(c===undefined)c='G$';return (n<0?'-':'')+c+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})};
 const fmt0=n=>'G$'+Math.round(n).toLocaleString('en-US');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -158,8 +160,9 @@ async function sbSync(){
   }catch(e){}finally{sbSyncing=false}
 }
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='hidden'){if(cloudT)cloudPush(true);if(SL.t){clearTimeout(SL.t);SL.t=0;slPush()}}
+  if(document.visibilityState==='hidden'){if(cloudT)cloudPush(true);if(SL.t){clearTimeout(SL.t);SL.t=0;slPush()}if(PQ.t)pushSend()}
   else if(SB&&user&&ui.ready&&!cloudT){sbSync();if(J.pull)J.pull();if(SL.pull)SL.pull()}
+  if(document.visibilityState==='visible'&&user&&ui.ready)loadRates();
 });
 async function cloudSync(){
   try{
@@ -183,6 +186,33 @@ async function cloudSync(){
   }catch(e){}
 }
 const total=()=>Object.keys(S.acc).reduce((t,k)=>t+S.acc[k]*S.rate[k]*GY,0);
+/* ---------- live exchange rates (netlify/functions/rates.mjs) ----------
+   Kept on the device and refreshed when older than 6 hours; without a connection the last saved rates
+   (or the fixed ones) are used. Values outside a sane range are ignored. */
+const RKEY='pairwise-rates',RT={r:null,busy:false};
+function applyRates(r){
+  if(!r||!(r.GYD>50&&r.GYD<2000)||!(r.EUR>0.2&&r.EUR<5)||!(r.GBP>0.2&&r.GBP<5))return false;
+  GY=r.GYD;S.rate={...S.rate,GYD:1/r.GYD,USD:1,EUR:1/r.EUR,GBP:1/r.GBP};RT.r=r;return true;
+}
+async function loadRates(force){
+  const c=ldj(RKEY,null),ok=applyRates(c);
+  if(ok&&!force&&Date.now()-(c.fetched||0)<6*36e5)return;
+  if(RT.busy)return;RT.busy=true;
+  try{
+    const res=await fetch('/api/rates',{cache:force?'no-store':'default'});if(!res.ok)throw new Error(res.status);
+    const r=await res.json();r.fetched=Date.now();
+    if(!applyRates(r))throw new Error('bad rates');
+    svj(RKEY,r);if(ui.ready&&['wallet','dashboard','transfer'].includes(ui.route))refresh();
+    if(force)toast(`Rates updated: US$1 = G$${GY.toFixed(2)}`);
+  }catch(e){if(force)toast(ok?'Could not reach the rates service. Showing the last saved rates':'Could not reach the rates service. Using fixed rates for now')}
+  finally{RT.busy=false}
+}
+function ratesHTML(){
+  const r=RT.r,row=(lab,v)=>`<div><span>${lab}</span><b>G$${v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</b></div>`;
+  return `<div class="rates"><div class="row"><b>${r?'Live exchange rates':'Exchange rates (fixed)'}</b><span class="hint" style="margin:0">${r?`Updated ${ago(r.updated*1000).toLowerCase()}`:'Not connected yet'}</span></div>
+   <div class="rgrid">${row('US$1',GY)}${row('€1',S.rate.EUR*GY)}${row('£1',S.rate.GBP*GY)}</div>
+   <div class="hint" style="margin-top:8px">${r?'Mid-market rates, updated daily. A bank or cambio will buy and sell a little either side. ':''}${r?'<a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Rates by Exchange Rate API</a>':''}</div></div>`;
+}
 const spentTotal=()=>sum(Object.values(S.budget).map(b=>b.spent));
 const tgIncome=()=>S.income!=null?+S.income:0;
 const dayKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -418,8 +448,8 @@ function wallet(){
         <div class="face back"><div class="mag"></div><div class="sig">***</div><small>Card number ending ${c.last}. Never share your CVV.</small></div></div></div>`).join('')}</div></div>
   </div>
   <div class="grid g-2">
-    <div class="card"><div class="row"><div><h3>Currencies</h3><div class="hint">Your balances in each currency</div></div><button class="link" data-act="rates">${ic('refresh')}About rates</button></div>
-      <div style="margin-top:8px">${cur.map(([k,n,col,s],ci)=>`<div class="cur" style="--i:${ci}"><div class="flag" style="background:${col}">${k.slice(0,2)}</div><div><b>${k}</b><small>${n}</small></div><div class="meter"><i data-w="${Math.max(3,S.acc[k]*S.rate[k]*GY/tot*100).toFixed(1)}"></i></div><div class="amt" data-count="${S.acc[k]}" data-f="${s}">0</div></div>`).join('')}</div></div>
+    <div class="card"><div class="row"><div><h3>Currencies</h3><div class="hint">Your balances in each currency</div></div><button class="link" data-act="rates" ${RT.busy?'disabled':''}>${ic('refresh')}Refresh rates</button></div>
+      <div style="margin-top:8px">${cur.map(([k,n,col,s],ci)=>`<div class="cur" style="--i:${ci}"><div class="flag" style="background:${col}">${k.slice(0,2)}</div><div><b>${k}</b><small>${n}</small></div><div class="meter"><i data-w="${Math.max(3,S.acc[k]*S.rate[k]*GY/tot*100).toFixed(1)}"></i></div><div class="amt" data-count="${S.acc[k]}" data-f="${s}">0</div></div>`).join('')}</div>${ratesHTML()}</div>
     <div class="card"><div class="row"><div><h3>Bills</h3><div class="hint">Paid once a month from your Salary account</div></div><button class="btn sm dark" data-act="setup">Edit bills</button></div>
       <div style="margin-top:8px">${S.bills.map(b=>`<div class="bill ${b.paid||b.skip?'paid':''}"><div class="ic-b">${ic(b.ic)}</div><div><b>${esc(b.name)}</b><small class="${!b.paid&&!b.skip&&b.days<0?'bad':''}">${billStatus(b)}</small></div><b>${fmt(b.amt)}</b>${b.paid?`<button class="btn sm" data-billundo="${b.id}">Undo</button>`:b.skip?'<span></span>':`<button class="btn sm dark" data-billpay="${b.id}">Mark paid</button>`}<button class="sw" role="switch" aria-checked="${!!b.auto}" aria-label="Autopay ${esc(b.name)}" data-bill="${b.id}"></button></div>`).join('')||'<div class="hint" style="padding:10px 0">No bills yet. Add rent, electricity and others in Edit bills.</div>'}</div>
       <div class="hint" style="margin-top:10px">Autopay records a bill on its due date (the next time you open the app). Mark paid records it now. Either way it counts in ${listAnd([...new Set((S.bills||[]).map(b=>b.cat).filter(Boolean))])||'its budget category'} and comes off your Salary account.</div></div>
@@ -854,6 +884,7 @@ function listMenu(){
    ${b('lbudget','coin',cl.budget!=null?'Change budget':'Set a budget')}
    ${b('history','clock',`Shopping history${tr?` · ${tr} trip${tr===1?'':'s'}`:''}`)}
    ${b('share','send','Send as text')}
+   ${cl.shared&&pushStatus()!=='none'?b(PU.on?'pushoff':'pushon','bell',PU.on?'Lock-screen notifications: on (tap to turn off)':'Lock-screen notifications'):''}
    ${!SB?'':cl.shared?(ui.unshare?b('unshare-yes','users',apt?'Tap again to stop sharing. You each keep your own copy':`Tap again to stop sharing. You keep a private copy; it is removed for ${esc(SL.partner||'your partner')}`,1):b('unshare','users','Stop sharing')):b('sharelist','users',SL.hh?`Share with ${esc(SL.partner||'your partner')}`:'Share with your partner')}
    ${!apt&&done?(ui.fresh?b('fresh-yes','refresh',`Tap again to set ${done} ticked item${done===1?'':'s'} back to Need to buy`,1):b('fresh','refresh','Start fresh')):''}
    ${apt?'':ui.delc?b('dellist-yes','trash',`Tap again to delete this list and its ${cl.items.length} item${cl.items.length===1?'':'s'}${cl.shared?' for both of you':''}`,1):b('dellist','trash','Delete list')}
@@ -1355,6 +1386,7 @@ async function slPush(){
     if(dI.length)chk(await SB.from('shared_items').delete().eq('household_id',hh).in('id',dI));
     if(dL.length)chk(await SB.from('shared_lists').delete().eq('household_id',hh).in('id',dL));
     if(SL.hh!==hh)return;
+    pushQueue(slMine(up,want)); // tell the partner's phones (bundled), before the old copy is replaced
     up.forEach(k=>{SL.last[k]=want[k]});del.forEach(k=>{delete SL.last[k]});
     if(dL.length)Object.keys(SL.last).forEach(k=>{if(k[0]==='I'&&dL.includes(JSON.parse(SL.last[k]).list))delete SL.last[k]});
     SL.state='live';slPush.warned=false;slCache();
@@ -1452,6 +1484,73 @@ function slNotify(ev){
   $('.round[data-act="bell"]')?.classList.add('fresh');
 }
 const ago=ts=>{const s=(Date.now()-ts)/1000;return s<60?'Just now':s<3600?`${Math.floor(s/60)} min ago`:s<86400?`${Math.floor(s/3600)} h ago`:`${Math.floor(s/86400)} d ago`};
+/* ---------- lock-screen notifications (web push: public/sw.js, netlify/functions/notify.mjs, supabase/push.sql) ----------
+   Each phone that turns them on is saved as a subscription. When you buy or add something on a shared list, your
+   changes from the next ~10 seconds are bundled into one message and sent to your partner's phones. */
+const PU={key:null,on:false,busy:false},PQ={ev:[],t:0};
+const pushSupported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+const isIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+function pushStatus(){
+  if(!SB)return 'none';
+  if(isIOS()&&!standalone())return 'ios';          // iPhone only allows it for Home Screen apps
+  if(!pushSupported())return 'unsupported';
+  if(Notification.permission==='denied')return 'denied';
+  return PU.on?'on':'off';
+}
+async function pushCheck(){
+  if(!SB||!pushSupported())return;
+  try{navigator.serviceWorker.register('/sw.js').catch(()=>{});const reg=await navigator.serviceWorker.getRegistration();const sub=reg&&await reg.pushManager.getSubscription();PU.on=!!sub&&Notification.permission==='granted'}catch(e){}
+}
+const b64u=s=>{const b=atob((s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0))};
+function pushHowIOS(){modal(`<h3>Notifications on iPhone</h3><div class="hint">iPhone only shows notifications for apps on your Home Screen.</div><ol class="steps"><li>In Safari, tap the <b>Share</b> button</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b></li><li>Open Pairwise from the new icon and sign in</li><li>Tap the bell, then <b>Turn on</b></li></ol><button class="btn dark" data-act="mclose2" style="width:100%;justify-content:center">Got it</button>`)}
+async function pushOn(){
+  if(PU.busy)return;const st=pushStatus();
+  if(st==='ios'){pushHowIOS();return}
+  if(st==='unsupported'){toast('This browser cannot show notifications');return}
+  if(st==='denied'){toast('Notifications are blocked for Pairwise. Allow them in your phone or browser settings, then try again',4500);return}
+  PU.busy=true;
+  try{
+    const perm=await Notification.requestPermission(); // first: the browser only asks during a tap
+    if(perm!=='granted'){toast('Notifications were not allowed');return}
+    if(!PU.key){const j=await (await fetch('/api/notify')).json();if(!j.push||!j.key)throw new Error('not_configured');PU.key=j.key}
+    const reg=await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;
+    const sub=(await reg.pushManager.getSubscription())||(await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(PU.key)}));
+    const j=sub.toJSON(),{error}=await SB.rpc('save_push_sub',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth});if(error)throw error;
+    PU.on=true;toast(`Notifications on. You will hear when ${SL.partner||'your partner'} buys or adds something`,4000);
+  }catch(e){toast(e&&e.message==='not_configured'?'Notifications are not set up on the server yet':'Could not turn on notifications. Try again')}
+  finally{PU.busy=false}
+}
+async function pushOff(silent){
+  try{const reg=await navigator.serviceWorker.getRegistration(),sub=reg&&await reg.pushManager.getSubscription();
+    if(sub){if(SB)await SB.from('push_subs').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe()}}catch(e){}
+  PU.on=false;if(!silent)toast('Notifications off on this device');
+}
+function pushRowHTML(){
+  const st=pushStatus();if(st==='none'||!SL.hh)return '';
+  const nm=esc(SL.partner||'your partner'),T={on:['Lock-screen notifications are on','Turn off','pushoff',''],off:[`Get a notification when ${nm} buys or adds something`,'Turn on','pushon','dark'],ios:['Lock-screen notifications: add Pairwise to your Home Screen first','How','pushon','dark'],denied:['Notifications are blocked in your settings','','',''],unsupported:['This browser cannot show notifications','','','']}[st];
+  return `<div class="n pushrow"><span class="ico">${ic('bell')}</span><div><b>${T[0]}</b></div>${T[1]?`<button class="btn sm ${T[3]}" data-act="${T[2]}">${T[1]}</button>`:''}</div>`;
+}
+/* what I just did on shared lists, worked out from what a push is about to send (SL.last still holds the old copy) */
+function slMine(up,want){
+  const me=user&&user.id,out=[],newLists=new Set();if(!me)return out;
+  up.forEach(k=>{if(k[0]!=='L'||SL.last[k])return;const d=JSON.parse(want[k]);newLists.add(k.slice(2));out.push({s:`shared a list with you: ${d.name==='Apartment'&&d.type==='apt'?'the Apartment checklist':d.name}`,list:'',kind:'list'})});
+  up.forEach(k=>{
+    if(k[0]!=='I')return;const d=JSON.parse(want[k]);if(newLists.has(d.list))return;
+    const o=SL.last[k]?JSON.parse(SL.last[k]):null,ln=(JSON.parse(want['L:'+d.list]||'null')||{}).name||'',it=String(d.i||'').toLowerCase();
+    if(!o){if(d.cb===me)out.push({s:`added ${it}`,list:ln})}
+    else if(o.s!==d.s&&d.by===me){if(d.s==='Purchased')out.push({s:`bought ${it}`,list:ln});else if(d.s==='Already Have')out.push({s:`already has ${it}`,list:ln})}
+  });
+  return out;
+}
+function pushQueue(ev){if(!ev.length)return;PQ.ev.push(...ev);clearTimeout(PQ.t);PQ.t=setTimeout(pushSend,10000)}
+async function pushSend(){
+  clearTimeout(PQ.t);PQ.t=0;const ev=PQ.ev.splice(0);if(!ev.length||!SB||!user)return;
+  const me=(user.name||'Your partner').split(' ')[0],lists=[...new Set(ev.map(e=>e.list).filter(Boolean))];
+  const text=(ev.length<=2?`${me} ${ev.map(e=>e.s).join(' and ')}`:`${me} ${ev.slice(0,2).map(e=>e.s).join(', ')} and ${ev.length-2} more`)+(lists.length===1?` · ${lists[0]}`:'');
+  try{const tok=(await SB.auth.getSession()).data.session.access_token;
+    await fetch('/api/notify',{method:'POST',keepalive:true,headers:{'content-type':'application/json',authorization:'Bearer '+tok},body:JSON.stringify({text,tag:'lists'})})}catch(e){}
+}
 function slNotesHTML(){
   const n=ldj(SLN(),[]).filter(x=>Date.now()-x.ts<3*864e5).slice(0,6);
   return n.map(x=>`<div class="n"><span class="ico">${ic('users')}</span><div><b>${esc(x.t)}</b><span>${x.l?esc(x.l)+' · ':''}${ago(x.ts)}</span></div></div>`).join('');
@@ -1892,14 +1991,14 @@ document.addEventListener('click',e=>{
   const a=el.dataset.act;
   if(a==='goals'){if(t.closest('[data-act="addgoal"]'))return;ui.goalsOpen=!ui.goalsOpen;refresh();return}
   if(a==='addgoal'){e.stopPropagation();ui.goalsOpen=true;refresh();setTimeout(()=>$('#gname')?.focus(),50);return}
-  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=Object.entries(S.budget).filter(([k,x])=>!x.fixed&&x.limit>0).sort((a,b)=>b[1].spent/b[1].limit-a[1].spent/a[1].limit)[0],inc=(S.tx||[]).find(t=>t.c==='Income');el.classList.remove('fresh');p.innerHTML=`<h4>Notifications</h4>${slNotesHTML()}${remAlerts().map(x=>`<div class="n"><span class="ico">${ic(CAL_KINDS[x.r.kind||'rem'][1])}</span><div><b>${esc(x.r.t)}</b><span>${remWhen(x)}${x.r.amt?' · '+fmt0(x.r.amt):''}</span></div></div>`).join('')}${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>${esc(en[0])} is at ${Math.round(en[1].spent/en[1].limit*100)}% of its limit</b><span>${fmt(en[1].limit-en[1].spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
+  if(a==='bell'){const p=$('#bellpop');p.hidden=!p.hidden;const b=(S.bills||[]).filter(x=>!x.paid&&!x.skip).sort((p,q)=>p.days-q.days)[0],en=Object.entries(S.budget).filter(([k,x])=>!x.fixed&&x.limit>0).sort((a,b)=>b[1].spent/b[1].limit-a[1].spent/a[1].limit)[0],inc=(S.tx||[]).find(t=>t.c==='Income');el.classList.remove('fresh');p.innerHTML=`<h4>Notifications</h4>${pushRowHTML()}${slNotesHTML()}${remAlerts().map(x=>`<div class="n"><span class="ico">${ic(CAL_KINDS[x.r.kind||'rem'][1])}</span><div><b>${esc(x.r.t)}</b><span>${remWhen(x)}${x.r.amt?' · '+fmt0(x.r.amt):''}</span></div></div>`).join('')}${b?`<div class="n"><span class="ico">${ic(b.ic||'bolt')}</span><div><b>${esc(b.name)} due soon</b><span>${fmt(b.amt)} on ${b.due}</span></div></div>`:''}${en?`<div class="n"><span class="ico">${ic('pie')}</span><div><b>${esc(en[0])} is at ${Math.round(en[1].spent/en[1].limit*100)}% of its limit</b><span>${fmt(en[1].limit-en[1].spent)} left this cycle</span></div></div>`:''}${inc?`<div class="n"><span class="ico">${ic('down')}</span><div><b>${esc(inc.n)} received</b><span>${fmt(inc.a)} · ${txDate(inc)}</span></div></div>`:''}`;return}
   if(a==='theme'){const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);S.theme=nx;save();try{localStorage.setItem(DEV_THEME,nx)}catch(e){}return}
   if(a==='more'){openMore();return}
   if(a==='addrem'){const f=$('#rm-t');if(f){f.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});f.focus({preventScroll:true})}return}
   if(a==='payday'){modal(`<h3>Payday</h3><div class="hint">The day of the month your salary arrives. The calendar shows your monthly income of ${fmt0(tgIncome())} on this day.</div><form id="paydayform" class="form"><label class="f">Day of the month<input class="in" id="pd-d" type="number" inputmode="decimal" min="1" max="31" step="1" required value="${payDay()}"></label><button class="btn dark" type="submit">Save</button></form>`);return}
   if(a==='lang'){toast('More languages are coming soon');return}
   if(a==='avatar'){const p=$('#userpop');p.hidden=!p.hidden;$('#bellpop').hidden=true;p.innerHTML=`<h4>${esc((prof()&&prof().name)||(user&&user.name)||'Guest')}</h4><div class="n"><span class="ico">${ic('mail')}</span><div><b style="word-break:break-all">${esc((user&&user.email)||'')}</b><span>Signed in on this device</span></div></div><button class="btn sm dark" style="width:100%;justify-content:center;margin-top:6px" data-act="profile">Profile settings</button><button class="btn sm" style="width:100%;justify-content:center;margin-top:6px" data-act="logout">Sign out</button>`;return}
-  if(a==='logout'){try{localStorage.removeItem(SKEY)}catch(e){}if(SB){if(cloudT)cloudPush(true);cloud=null;jStop();SB.auth.signOut().catch(()=>{})}user=null;$('#qafab').hidden=true;$('#userpop').hidden=true;$('#bellpop').hidden=true;openChat(false);$('#msgs').innerHTML='';showAuth('login');return}
+  if(a==='logout'){try{localStorage.removeItem(SKEY)}catch(e){}if(SB){if(cloudT)cloudPush(true);if(PQ.t)pushSend();cloud=null;jStop();(PU.on?pushOff(true):Promise.resolve()).finally(()=>SB.auth.signOut().catch(()=>{}))}user=null;$('#qafab').hidden=true;$('#userpop').hidden=true;$('#bellpop').hidden=true;openChat(false);$('#msgs').innerHTML='';showAuth('login');return}
   if(a==='plantoggle'){ui.planOpen=ui.planOpen===false;refresh();return}
   if(a==='planguess'){let n=0;aptL().forEach(x=>{if(x.s==='Need to Buy'&&!(+x.c>0)&&guessP(x)){x.c=guessP(x);n++}});save();refresh();toast(`${n} rough estimates filled in. Replace them with real prices as you find them.`);return}
   if(a==='planall'){ui.planAll=!ui.planAll;refresh();return}
@@ -1958,7 +2057,8 @@ document.addEventListener('click',e=>{
   if(a==='request'){modal(`<h3>Payment request</h3><div class="hint">Writes a short message asking someone to pay you. Paste it into WhatsApp, SMS or email.</div><form class="form" id="reqform"><label class="f">From<input class="in" id="rwho" list="rwho-l" maxlength="30" required autocomplete="off" placeholder="Name"><datalist id="rwho-l">${S.contacts.map(c=>`<option value="${esc(c.n)}">`).join('')}</datalist></label><label class="f">Amount (G$)<input class="in" id="ramt" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required></label><label class="f">What for (optional)<input class="in" id="rfor" maxlength="60" placeholder="e.g. Your half of the light bill"></label><div class="btns" style="margin:0"><button class="btn orange" type="submit">${ic('copy')}Copy request message</button><button class="btn" type="button" data-act="mclose2">Cancel</button></div></form>`);return}
   if(a==='addcard'){modal(`<h3>Add a card</h3><div class="hint">For example Savings or a Joint account. Only the main account is used by the budget. Joint cards are the only ones your partner can see.</div><form id="newcardform" class="form" style="margin-top:12px"><label class="f">Account name<input class="in" id="nc-n" maxlength="30" required placeholder="e.g. Savings" autofocus></label><label class="f">Balance (G$)<input class="in" id="nc-b" type="number" inputmode="decimal" min="0" step="any" value="0"></label><label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="nc-j" style="width:auto;margin:0"> Joint card, shared with my partner</label><button class="btn dark" type="submit" style="margin-top:10px;width:100%">Add card</button></form>`);return}
   if(a==='delcard'){const c=selCard();if(!c||c.main)return;if(c.joint&&jTotal()){toast('This card shows your Joint plans. Take the money out there first');return}if(goalCard()&&goalCard().id===c.id&&goalsHeld()>0){toast('This card holds your savings goals. Take the money out of the goals first');return}if(ui.dcard!==c.id){ui.dcard=c.id;refresh();return}if(c.joint){const jj=jload();jj.cards=jj.cards.filter(x=>x.id!==c.id);jsave(jj)}else{S.cards=S.cards.filter(x=>x.id!==c.id);save()}ui.dcard=null;ui.sel=null;refresh();toast('Card deleted');return}
-  if(a==='rates'){toast(`Live rates are not connected. Using fixed rates: US$1 = G$209, €1 = US$${S.rate.EUR}, £1 = US$${S.rate.GBP}`);return}
+  if(a==='rates'){loadRates(true);return}
+  if(a==='pushon'||a==='pushoff'){closeModal();$('#bellpop').hidden=true;if(a==='pushon')pushOn();else pushOff();return}
 });
 document.addEventListener('change',e=>{
   const dd=e.target.closest('[data-day]');if(dd){if(dd.value){ui.day=dd.value;ui.period='day';refresh()}return}
@@ -2264,7 +2364,7 @@ function wipeAll(){S.paidCycle=null;S.acc={GYD:0,USD:0,EUR:0,GBP:0};S.income=0;S
 /* amounts used to be stored in US$ (G$ / 209); convert saved data once */
 function toGYD(){
   if(S.units==='gyd')return false;
-  const g=v=>typeof v==='number'?Math.round(v*GY*100)/100:v;
+  const g=v=>typeof v==='number'?Math.round(v*GY0*100)/100:v;
   Object.values(S.budget||{}).forEach(b=>{b.limit=g(b.limit);b.spent=g(b.spent)});
   (S.tx||[]).forEach(t=>t.a=g(t.a));(S.transfers||[]).forEach(t=>t.a=g(t.a));
   (S.goals||[]).forEach(x=>{x.t=g(x.t);x.s=g(x.s)});(S.bills||[]).forEach(b=>b.amt=g(b.amt));
@@ -2284,11 +2384,12 @@ function prepState(){
   if(Array.isArray(S.cards)&&S.cards.length&&!S.cards.some(c=>c.main)){const c0=S.cards[0];c0.main=true;if(/^(codear|pairwise)/i.test(c0.name||''))c0.name='Salary account';save()}
   applyTheme(!!user);
   applyFresh();
+  if(RT.r)applyRates(RT.r); // a restored backup carries old rates; keep the live ones
 }
 prepState();
 function startApp(){
   jStop();jKeys();jLoad();slLoad();jConnect();
-  cloudSync();
+  cloudSync();loadRates();pushCheck();
   paintAvatar();const autoPaid=payDueBills();const fb=$('#qafab');if(fb)fb.hidden=false;
   if(autoPaid.length)setTimeout(()=>toast(`Autopay: ${listAnd(autoPaid.map(b=>b.name))} recorded as paid`),1600);
   {const all=remAlerts(),seen=S.remSeen||{},al=all.filter(x=>!seen[x.r.id+':'+x.d]);if(al.length){S.remSeen={};all.forEach(x=>S.remSeen[x.r.id+':'+x.d]=1);save();const w=remWhen(al[0]).replace(/^(Today|Tomorrow)/,m=>m.toLowerCase());setTimeout(()=>toast(`Reminder: ${al[0].r.t}, ${w}${al.length>1?` (+${al.length-1} more in the bell)`:''}`),autoPaid.length?4200:2600)}}
