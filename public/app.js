@@ -45,7 +45,8 @@ const P={
   phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
   edit:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
-  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'
+  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  kebab:'<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>'
 };
 const ic=(n,cls='')=>`<svg class="ic ${cls}" viewBox="0 0 24 24">${P[n]||''}</svg>`;
 const GY=209; /* G$ per US$1; every stored amount is in G$, rates are per US$1 */
@@ -741,24 +742,30 @@ function gExtras(cl){
   else if(!L.length){head='Your list is empty';tip='Type a few items in Quick add. I learn what you buy and remind you when you are due.'}
   else if(need.length){head=`${need.length} item${need.length===1?'':'s'} to go`;tip=est?`About ${fmt(est,'G$')} planned so far.`:'Add estimated costs to see a running total.'}
   const food=S.budget[foodCat()],trip=(cl.trips||[])[0];
-  const bar=bud?`<div class="meter"><i class="${pct>1?'over':pct>.85?'near':''}" data-w="${Math.min(100,pct*100).toFixed(1)}"></i></div><div class="hint" style="margin:0">${fmt(est,'G$')} planned of ${fmt(bud,'G$')}</div>`:`<div class="hint" style="margin:8px 0 0">Set a budget to see how this list compares.</div>`;
   const cleo=`<div class="card gcleo ${m}"><div class="cleo ${m}"><div class="cleo-art sm">${cleoSvg(m)}</div><div class="cleo-body"><span class="mood">${lab}</span><h3 class="cl-h">${head}</h3><p class="cl-t">${tip}</p></div></div>
    ${sg.length?`<div class="chips">${sg.map(s=>chip(s.n)).join('')}</div>`:''}
-   <div class="gbud"><div class="row"><label>Grocery budget (G$)<input class="cell num" type="number" inputmode="decimal" min="0" step="1000" value="${bud==null?'':bud}" placeholder="Not set" data-gbud aria-label="Grocery budget"></label></div>${bar}
-   ${food?`<div class="hint" style="margin-top:10px">Budget tab, ${esc(foodCat())}: ${fmt(food.spent)} used of ${fmt(food.limit)}</div>`:''}
-   ${trip?`<div class="hint">Last trip (${esc(trip.d)}): paid ${fmt(trip.paid,'G$')}${trip.est?`, ${trip.paid>trip.est?'over':'under'} the estimate by ${fmt(Math.abs(trip.paid-trip.est),'G$')}`:''}</div>`:''}</div></div>`;
-  const share=ui.share?`<div class="card popin" style="margin-bottom:16px"><div class="row"><h3>Share this list</h3><button class="btn sm" data-act="share">Close</button></div><textarea class="sharebox" id="sharetxt" readonly>${esc(shareText(cl))}</textarea><div class="btns" style="margin-top:12px"><button class="btn sm dark" data-act="copyshare">Copy text</button><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(shareText(cl))}">Open in WhatsApp</a></div></div>`:'';
-  return `${share}<div class="gx">${quick}${cleo}</div>`;
+   ${food||trip?`<div class="gbud">${food?`<div class="hint" style="margin:0">Budget tab, ${esc(foodCat())}: ${fmt(food.spent)} used of ${fmt(food.limit)}</div>`:''}
+   ${trip?`<div class="hint">Last trip (${esc(trip.d)}): paid ${fmt(trip.paid,'G$')}${trip.est?`, ${trip.paid>trip.est?'over':'under'} the estimate by ${fmt(Math.abs(trip.paid-trip.est),'G$')}`:''}</div>`:''}</div>`:''}</div>`;
+  return `<div class="gx">${quick}${cleo}</div>`;
 }
+function shareCard(cl){
+  if(!ui.share)return '';
+  return `<div class="card popin" id="sharecard" style="margin-bottom:12px"><div class="row"><h3>Share this list</h3><button class="btn sm" data-act="share">Close</button></div><textarea class="sharebox" id="sharetxt" readonly>${esc(shareText(cl))}</textarea><div class="btns" style="margin-top:12px"><button class="btn sm dark" data-act="copyshare">Copy text</button><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(shareText(cl))}">Open in WhatsApp</a></div></div>`;
+}
+/* budget category a finished trip is logged to */
+const finCat=cl=>{const k=Object.keys(S.budget);return isG(cl)?(foodCat()||k[0]):(S.budget.Shopping?'Shopping':foodCat()||k[0])};
+const listTitle=cl=>cl.type==='apt'?'Apartment Checklist':cl.name;
+/* purchased items not yet logged to the budget (the apartment list keeps logged items, marked lg) */
+const unlogged=cl=>cl.items.filter(x=>x.s==='Purchased'&&!x.lg);
 function finishCard(cl){
-  const got=cl.items.filter(x=>x.s==='Purchased');
-  if(!got.length)return '';
-  const e=sum(got.map(x=>+x.c||0));
-  return `<div class="card fincard"><div class="row" style="flex-wrap:wrap"><div><h3>Finished shopping?</h3><div class="hint">${got.length} item${got.length===1?'':'s'} in the cart. Log what you paid and I add it to your ${esc(foodCat()||'Food')} budget.</div></div>${ui.fin?'':`<button class="btn dark" data-act="finish">${ic('receipt')}Finish and log</button>`}</div>
-  ${ui.fin?`<form class="addrow" id="finform"><input class="in" id="paid" type="number" inputmode="decimal" min="0" step="1" value="${e||''}" placeholder="Total on your receipt (G$)" required aria-label="Total paid in G$"><button class="btn sm dark" type="submit">${ic('check')}Log it</button><button class="btn sm" type="button" data-act="finish">Cancel</button></form>`:''}</div>`;
+  const got=unlogged(cl);
+  if(!got.length||!Object.keys(S.budget).length)return '';
+  const e=sum(got.map(x=>+x.c||0)),apt=cl.type==='apt',fc=finCat(cl);
+  return `<div class="card fincard"><div class="row" style="flex-wrap:wrap"><div><h3>Finished shopping?</h3><div class="hint">${got.length} item${got.length===1?'':'s'} ticked off${e?`, about ${fmt(e,'G$')}`:''}. Log what you actually paid and I add it to your budget${apt?'':'. The items leave this list and stay in Shopping history'}.</div></div>${ui.fin?'':`<button class="btn dark" data-act="finish">${ic('receipt')}Finish and log</button>`}</div>
+  ${ui.fin?`<form class="form" id="finform" style="margin-top:12px"><div class="two"><label class="f">Total you paid (G$)<input class="in" id="paid" type="number" inputmode="decimal" min="0" step="any" value="${e||''}" placeholder="From your receipt" required></label><label class="f">Budget category<select class="in" id="fin-c">${Object.keys(S.budget).map(k=>`<option ${k===fc?'selected':''}>${esc(k)}</option>`).join('')}</select></label></div><div class="btns" style="margin:0"><button class="btn dark" type="submit">${ic('check')}Log it</button><button class="btn" type="button" data-act="finish">Cancel</button></div></form>`:''}</div>`;
 }
 function shopView(cl){
-  const L=cl.items,need=L.filter(x=>x.s==='Need to Buy'),got=L.filter(x=>x.s==='Purchased'),tot=need.length+got.length,pc=tot?got.length/tot*100:0;
+  const L=cl.items,need=L.filter(x=>x.s==='Need to Buy'),got=unlogged(cl),tot=need.length+got.length,pc=tot?got.length/tot*100:0;
   const rowH=(x,d)=>`<button class="shoprow ${d?'done':''}" data-tick="${x.id}" aria-label="${d?'Put back':'Add to cart'}: ${esc(x.i)}"><span class="cb" aria-pressed="${d}">${ic('check')}</span><span class="nm">${esc(x.i)}</span>${x.q?`<span class="q">${esc(x.q)}</span>`:''}${x.c?`<span class="pr">${fmt(x.c,'G$')}</span>`:''}</button>`;
   const secs=secAreas(cl).map(a=>{const r=need.filter(x=>x.a===a);return r.length?`<div class="card shopsec"><h3><span class="ico cat-ic">${ic(GIC[a]||'list')}</span>${esc(a)}</h3>${r.map(x=>rowH(x,false)).join('')}</div>`:''}).join('');
   const done=!need.length&&got.length;
@@ -777,7 +784,9 @@ function curList(){
   ui.list='apt';
   return {id:'apt',name:'Apartment',type:'apt',pri:true,qty:false,
     get items(){return S.check},set items(v){S.check=v},
-    get groups(){return S.aptGroups||(S.aptGroups=[])},set groups(v){S.aptGroups=v}};
+    get groups(){return S.aptGroups||(S.aptGroups=[])},set groups(v){S.aptGroups=v},
+    get budget(){return S.aptBud??null},set budget(v){S.aptBud=v},
+    get trips(){return S.aptTrips||(S.aptTrips=[])},set trips(v){S.aptTrips=v}};
 }
 const PRCLS={High:'hi',Medium:'md',Low:'lo'},PRORD={High:0,Medium:1,Low:2};
 const isDone=x=>x.s==='Purchased'||x.s==='Already Have';
@@ -787,17 +796,20 @@ function sortRows(rows,pri){const rk=x=>x.s==='Need to Buy'?0:x.s==='Not Needed'
   return rows.map((x,k)=>[x,k]).sort((p,q)=>rk(p[0])-rk(q[0])||(pri?(PRORD[p[0].p]??1)-(PRORD[q[0].p]??1):0)||p[1]-q[1]).map(p=>p[0])}
 function itemRow(cl,x){
   const ok=isDone(x),cls=[ok?'done':'',x.s==='Purchased'?'bought':'',x.s==='Not Needed'?'dim':''].join(' ');
+  /* compact card: priority shows only when it is not the usual Medium; the note box only once there is a note */
   return `<div class="irow ${cls}" data-name="${esc(x.i.toLowerCase())}" ${qHit(x)?'':'hidden'}>
    <button class="cb" data-tick="${x.id}" aria-pressed="${ok}" aria-label="${ok?'Mark as still to buy':'Mark as purchased'}: ${esc(x.i)}">${ic('check')}</button>
    <button class="inm" data-iedit="${x.id}" aria-label="Edit ${esc(x.i)}">${esc(x.i)}</button>
+   <label class="iprice"><span>G$</span><input type="number" inputmode="decimal" min="0" step="any" value="${x.c==null?'':x.c}" placeholder="—" style="--n:${String(x.c??'').length||1}" data-ck="${x.id}:c" aria-label="Estimated cost of ${esc(x.i)} in G$"></label>
+   <button class="imore" data-iedit="${x.id}" aria-label="More options for ${esc(x.i)}">${ic('kebab')}</button>
    <div class="ipills">
-    ${cl.pri?`<span class="pp ${PRCLS[x.p]||'md'}"><select data-ck="${x.id}:p" aria-label="Priority of ${esc(x.i)}">${PRI.map(o=>`<option value="${o}" ${o===x.p?'selected':''}>${o} priority</option>`).join('')}</select></span>`:''}
     <span class="pp ${stCls(x.s)}"><select data-ck="${x.id}:s" aria-label="Status of ${esc(x.i)}">${STAT.map(o=>`<option ${o===x.s?'selected':''}>${o}</option>`).join('')}</select></span>
+    ${cl.pri&&x.p&&x.p!=='Medium'?`<span class="pp ${PRCLS[x.p]}"><select data-ck="${x.id}:p" aria-label="Priority of ${esc(x.i)}">${PRI.map(o=>`<option value="${o}" ${o===x.p?'selected':''}>${o}</option>`).join('')}</select></span>`:''}
     ${cl.qty?`<label class="pp qty"><span>Qty</span><input data-ck="${x.id}:q" value="${esc(x.q||'')}" placeholder="1" maxlength="10" aria-label="Quantity of ${esc(x.i)}"></label>`:''}
+    ${x.n?'':`<button class="addnote" data-note="${x.id}">${ic('plus')}Note</button>`}
+    ${x.c!=null?'<span class="iest">Estimated</span>':''}
    </div>
-   <label class="iprice"><span>G$</span><input type="number" inputmode="decimal" min="0" step="any" value="${x.c==null?'':x.c}" placeholder="0" data-ck="${x.id}:c" aria-label="Estimated cost of ${esc(x.i)} in G$"></label>
-   <label class="inote">${ic('edit')}<input value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Note for ${esc(x.i)}"></label>
-   <button class="imore" data-iedit="${x.id}" aria-label="More options for ${esc(x.i)}">${ic('more')}</button>
+   <label class="inote" ${x.n?'':'hidden'}>${ic('edit')}<input value="${esc(x.n)}" placeholder="Add a note" maxlength="80" data-ck="${x.id}:n" aria-label="Note for ${esc(x.i)}"></label>
   </div>`;
 }
 /* bottom sheet: everything about one item, including moving it to another section and deleting it */
@@ -821,37 +833,73 @@ function secMenu(a){
     <button data-secdel="${esc(a)}" class="${ask?'warnbtn':''}"><span class="ico">${ic('trash')}</span>${ask?`Tap again to delete ${esc(a)} and its ${n} item${n===1?'':'s'}`:'Delete section'}</button>
    </div>`);
 }
+const STSHORT={'Need to Buy':'Need to buy','Already Have':'Have','Purchased':'Purchased','Not Needed':'Not needed'};
+function listMenu(){
+  const cl=curList(),apt=cl.type==='apt',done=cl.items.filter(isDone).length,tr=(cl.trips||[]).length;
+  const b=(act,icn,label,warn)=>`<button data-act="${act}" class="${warn?'warnbtn':''}"><span class="ico">${ic(icn)}</span>${label}</button>`;
+  modal(`<h3>${esc(listTitle(cl))}</h3><div class="morelist">
+   ${b('shop','bag','Shopping mode')}
+   ${b('lbudget','coin',cl.budget!=null?'Change budget':'Set a budget')}
+   ${b('history','clock',`Shopping history${tr?` · ${tr} trip${tr===1?'':'s'}`:''}`)}
+   ${b('share','send','Share list')}
+   ${!apt&&done?(ui.fresh?b('fresh-yes','refresh',`Tap again to set ${done} ticked item${done===1?'':'s'} back to Need to buy`,1):b('fresh','refresh','Start fresh')):''}
+   ${apt?'':ui.delc?b('dellist-yes','trash',`Tap again to delete this list and its ${cl.items.length} item${cl.items.length===1?'':'s'}`,1):b('dellist','trash','Delete list')}
+  </div>`);
+}
+function budgetSheet(){
+  const cl=curList();
+  modal(`<h3>Budget for ${esc(listTitle(cl))}</h3><div class="hint">How much you want to spend on this list. The bar shows what you have ticked off against it.</div>
+   <form class="form" id="lbudform" style="margin-top:12px"><label class="f">Budget (G$)<input class="in" id="lb-a" type="number" inputmode="decimal" min="0" step="any" required value="${cl.budget==null?'':cl.budget}" placeholder="e.g. 20000"></label>
+   <div class="btns" style="margin:0"><button class="btn dark" type="submit">Save</button>${cl.budget!=null?`<button class="btn" type="button" data-act="lbud-clear">Remove budget</button>`:''}</div></form>`);
+  setTimeout(()=>$('#lb-a')?.focus(),50);
+}
+function historySheet(){
+  const cl=curList(),T=cl.trips||[];
+  modal(`<h3>Shopping history</h3><div class="hint">Every time you tap Finish and log, the trip is saved here. Shop again puts those items back on the list.</div>
+   ${T.length?`<div class="hist">${T.map((t,i)=>`<div class="htrip"><div class="hti"><b>${esc(t.d)} · ${fmt(t.paid,'G$')}</b><span>${t.n} item${t.n===1?'':'s'}${t.est?` · estimate was ${fmt(t.est,'G$')}`:''}</span>${t.it&&t.it.length?`<small>${esc(t.it.slice(0,6).map(x=>x.i).join(', '))}${t.it.length>6?` and ${t.it.length-6} more`:''}</small>`:''}</div>${t.it&&t.it.length?`<button class="btn sm dark" data-again="${i}">${ic('refresh')}Shop again</button>`:''}</div>`).join('')}</div>`
+   :`<div class="emptyrow">No trips yet. After shopping, tick off what you bought and tap Finish and log.</div>`}`);
+}
+function listHead(cl){
+  const L=cl.items,apt=cl.type==='apt',bud=cl.budget;
+  const n=s=>L.filter(x=>x.s===s).length,spent=sum(L.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),toBuy=sum(L.filter(x=>x.s==='Need to Buy').map(x=>+x.c||0));
+  const title=ui.ren&&!apt?`<form class="hdr-form" id="renform"><input class="in" id="rname" value="${esc(cl.name)}" maxlength="30" aria-label="List name" required><button class="btn sm dark" type="submit">Save</button><button class="btn sm" type="button" data-act="renlist">Cancel</button></form>`:`<h1>${esc(listTitle(cl))}</h1>`;
+  const sub=[`${L.length} item${L.length===1?'':'s'}`,`${n('Purchased')} purchased`,n('Already Have')?`${n('Already Have')} already have`:''].filter(Boolean).join(' · ');
+  let budget;
+  if(bud!=null&&bud>0){
+    const left=bud-spent,over=spent>bud,planOver=spent+toBuy>bud,k=spent/bud;
+    budget=`<div class="row"><span class="lbl">${apt?'Apartment':'Shopping'} budget</span><button class="amt ${over?'over':''}" data-act="lbudget" aria-label="Change budget">${fmt(spent,'G$')} / ${fmt(bud,'G$')}</button></div>
+     <div class="lbar ${over?'over':k>.85?'near':''} ${planOver?'planover':''}" role="img" aria-label="${fmt(spent,'G$')} spent of ${fmt(bud,'G$')}"><i class="plan" data-w="${Math.min(100,(spent+toBuy)/bud*100).toFixed(1)}"></i><i class="spent" data-w="${Math.min(100,k*100).toFixed(1)}"></i></div>
+     <div class="lbsub">${over?`<b>${fmt(-left,'G$')} over budget</b>`:`${fmt(left,'G$')} remaining`} · ${fmt(toBuy,'G$')} still to buy${!over&&planOver?` · <b>${fmt(spent+toBuy-bud,'G$')} over if you buy it all</b>`:''}</div>`;
+  }else{
+    budget=`<div class="row"><span class="lbl">${fmt(spent,'G$')} spent · ${fmt(toBuy,'G$')} still to buy</span><button class="link" data-act="lbudget">Set a budget</button></div>`;
+  }
+  return `<div class="card lhead"><div class="lhrow"><div class="ttl">${title}<div class="sub">${sub}</div></div>
+   ${ui.ren?'':`<div class="hbtns">${apt?'':`<button class="round" data-act="renlist" aria-label="Rename list">${ic('edit')}</button>`}<button class="round" data-act="lmenu" aria-label="List options" aria-haspopup="dialog">${ic('more')}</button></div>`}</div>
+   <div class="lbud">${budget}</div>
+   ${isG(cl)?`<div class="hcta"><button class="btn sm dark" data-act="shop">${ic('bag')}Shopping mode</button></div>`:''}</div>`;
+}
 function checklist(){
   const cl=curList(),L=cl.items,f=ui.chk,apt=cl.type==='apt',g=isG(cl);
-  if(g&&ui.shop){ui.lanim=false;return shopView(cl)}
-  const cnt=s=>L.filter(x=>x.s===s).length,est=estOf(cl);
-  const spent=sum(L.filter(x=>x.s==='Purchased').map(x=>+x.c||0)),toBuy=sum(L.filter(x=>x.s==='Need to Buy').map(x=>+x.c||0));
-  const stat=(t,v,icn,c='')=>`<div class="card"><h3><span class="ico ${c}">${ic(icn)}</span>${t}</h3><div class="mid" data-count="${v}" data-f="n">0</div></div>`;
-  const tabs=['All',...STAT].map(s=>`<button class="tab" role="tab" aria-selected="${f===s}" data-chk="${s}">${s} · ${s==='All'?L.length:cnt(s)}</button>`).join('');
+  if(ui.shop){ui.lanim=false;return shopView(cl)}
+  const cnt=s=>L.filter(x=>x.s===s).length;
+  const tabs=['All',...STAT].filter(s=>s==='All'||s===f||cnt(s)||s!=='Not Needed').map(s=>`<button class="tab" role="tab" aria-selected="${f===s}" data-chk="${s}">${s==='All'?'All':STSHORT[s]} <b>${s==='All'?L.length:cnt(s)}</b></button>`).join('');
   const cards=secAreas(cl).map(a=>{
     const rows=L.filter(x=>x.a===a),vis=sortRows(f==='All'?rows:rows.filter(x=>x.s===f),cl.pri);
     if(!vis.length&&f!=='All')return '';
-    const done=rows.filter(isDone).length,sub=sum(rows.map(x=>+x.c||0)),hid=ui.q&&!vis.some(qHit);
+    const done=rows.filter(isDone).length,hid=ui.q&&!vis.some(qHit);
     return `<div class="card chk" data-sec="${esc(a)}" ${hid?'hidden':''}>
-     <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<span class="secpill"><span class="ico">${ic(GIC[a]||'list')}</span><b>${esc(a)}</b></span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('more')}</button></div>
-     <div class="secsub"><span>${rows.length?`${done} of ${rows.length} ready · ${fmt(sub,'G$')} estimated`:'Empty section'}</span>${rows.length?`<div class="meter"><i data-w="${(done/rows.length*100).toFixed(1)}"></i></div>`:''}</div>
-     ${vis.length?vis.map(x=>itemRow(cl,x)).join(''):`<div class="emptyrow">No items yet. Add the first one below.</div>`}
-     <form class="addrow additem" data-area="${esc(a)}"><input class="in" name="item" placeholder="${cl.qty?'Add items, e.g. 2 tomatoes, milk':'Add an item…'}" maxlength="200" autocomplete="off" aria-label="New item for ${esc(a)}"><button class="btn dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
+     <div class="sechd">${g?`<button class="grip" draggable="true" data-grip="${esc(a)}" aria-label="Drag to reorder ${esc(a)}">${ic('grip')}</button>`:''}<span class="ico">${ic(GIC[a]||'list')}</span><h3 class="secname">${esc(a)}</h3><span class="secct ${rows.length&&done===rows.length?'all':''}">${rows.length?`${done} / ${rows.length} done`:'Empty'}</span><button class="secmore" data-secmenu="${esc(a)}" aria-label="Options for ${esc(a)}">${ic('more')}</button></div>
+     ${vis.length?`<div class="ilist">${vis.map(x=>itemRow(cl,x)).join('')}</div>`:`<div class="emptyrow">No items yet. Add the first one below.</div>`}
+     <form class="addrow additem" data-area="${esc(a)}"><input class="in" name="item" placeholder="${cl.qty?'Add items…':'Add an item…'}" maxlength="200" autocomplete="off" aria-label="New item for ${esc(a)}"><button class="btn dark" type="submit">${ic('plus')}Add</button></form></div>`}).join('');
   const lists=[{id:'apt',name:'Apartment',n:S.check.length},...S.lists.map(l=>({id:l.id,name:l.name,n:l.items.length}))];
   const sw=`<div class="lsw" role="tablist" aria-label="Lists">${lists.map(l=>`<button class="ltab" role="tab" aria-selected="${l.id===cl.id}" data-list="${l.id}"><span>${esc(l.name)}</span><em>${l.n}</em></button>`).join('')}<button class="ltab add" data-act="newlist">${ic('plus')}New list</button></div>`;
   const newForm=ui.newList?`<form class="card" id="newlistform" style="margin-bottom:16px"><h3>Create a list</h3><div class="two form"><label class="f">Name<input class="in" id="nlname" maxlength="30" placeholder="e.g. Pharmacy run" required></label><label class="f">Start from<select class="in" id="nltpl"><option value="groceries">Groceries (6 sections, quantity)</option><option value="market">Market day (Guyanese staples)</option><option value="blank">Blank list (one section, priority)</option></select></label></div><div class="btns"><button class="btn dark" type="submit">${ic('plus')}Create list</button><button class="btn" type="button" data-act="newlist">Cancel</button></div></form>`:'';
-  const title=ui.ren&&!apt?`<form class="hdr-form" id="renform"><input class="in" id="rname" value="${esc(cl.name)}" maxlength="30" aria-label="List name" required><button class="btn sm dark" type="submit">Save</button><button class="btn sm" type="button" data-act="renlist">Cancel</button></form>`:`<h1>${apt?'Apartment Checklist':esc(cl.name)}</h1>`;
-  const sub=apt?'Tick things off as you get them. Tap an item to edit, move or delete it.':g?'Add what you need, put the sections in the order you walk your store, then tap Shopping mode.':'Add items, track their status and keep a running estimate.';
-  const ctrl=apt||ui.ren?'':ui.delc?`<div class="delask"><span class="hint" style="margin:0">Delete this list and its ${L.length} item${L.length===1?'':'s'}?</span><button class="btn sm orange" data-act="dellist-yes">Yes, delete</button><button class="btn sm" data-act="dellist">Cancel</button></div>`:`<button class="round" data-act="renlist" aria-label="Rename list">${ic('edit')}</button><button class="round danger" data-act="dellist" aria-label="Delete list">${ic('trash')}</button>`;
-  const gctl=g?`<div class="gctl"><button class="btn sm dark" data-act="shop">${ic('bag')}Shopping mode</button><button class="btn sm" data-act="share">Share</button></div>`:'';
-  const search=L.length>=6?`<label class="chkq">${ic('search')}<input id="chkq" type="search" placeholder="Search ${L.length} items" value="${esc(ui.q||'')}" autocomplete="off" aria-label="Search items"></label>`:'';
+  const search=`<label class="chkq">${ic('search')}<input id="chkq" type="search" placeholder="Search items…" value="${esc(ui.q||'')}" autocomplete="off" aria-label="Search items"></label>`;
   const anyHit=!ui.q||L.some(x=>qHit(x)&&(f==='All'||x.s===f));
-  const empty=`<div class="card emptyst" id="chkempty" ${cards&&anyHit?'hidden':''}>${ui.q?`Nothing matches "${esc(ui.q)}".`:`No items marked ${esc(f)}.`}</div>`;
+  const empty=`<div class="card emptyst" id="chkempty" ${cards&&anyHit?'hidden':''}>${ui.q?`Nothing matches "${esc(ui.q)}".`:f==='All'?'Nothing here yet. Add a section below to start.':`No items marked ${esc(STSHORT[f]||f).toLowerCase()}.`}</div>`;
   const secAdd=ui.secAdd?`<form class="addrow secadd" id="secform"><input class="in" name="sec" placeholder="${apt?'e.g. Balcony':'e.g. Frozen'}" maxlength="30" aria-label="New section name" required><button class="btn sm dark" type="submit">${ic('plus')}Add section</button><button class="btn sm" type="button" data-act="secadd">Cancel</button></form>`:`<button class="secaddbtn" data-act="secadd">${ic('plus')}Add section</button>`;
-  const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}"><div class="page-head chkhead"><div class="ttl">${title}<div class="sub">${sub}</div></div>${ctrl?`<div class="hbtns">${ctrl}</div>`:''}</div>${gctl}${g?gExtras(cl):''}${apt?planCard():''}
-  <div class="grid chkstats">${stat('Total Items',L.length,'receipt')}${stat('Already Have',cnt('Already Have'),'home')}${stat('Need to Buy',cnt('Need to Buy'),'bag')}${stat('Purchased',cnt('Purchased'),'check','good')}</div>
-  <div class="card estban"><span class="estic">${ic('coin')}</span><div><div class="el">Estimated budget (GYD)</div><div class="ev" data-count="${est}" data-f="G$">0</div><div class="es">${fmt(spent,'G$')} spent · ${fmt(toBuy,'G$')} still to buy</div></div></div>
-  <div class="chkbar">${search}<div class="tabs" role="tablist" aria-label="Filter by status">${tabs}</div></div>${cards}${empty}${g?finishCard(cl):''}
+  const out=`${sw}${newForm}<div class="${ui.lanim?'lswap':''}">${listHead(cl)}${shareCard(cl)}${g?gExtras(cl):''}${apt?planCard():''}
+  <div class="chkbar">${search}<div class="tabs" role="tablist" aria-label="Filter by status">${tabs}</div></div>${cards}${empty}${finishCard(cl)}
   ${secAdd}</div>`;
   ui.lanim=false;return out;
 }
@@ -860,7 +908,11 @@ function applyQ(){
   $$('.chk[data-sec]').forEach(c=>{let n=0;c.querySelectorAll('.irow').forEach(r=>{const h=!!q&&!r.dataset.name.includes(q);r.hidden=h;if(!h)n++});c.hidden=!!q&&!n});
   const em=$('#chkempty');if(em){const none=!$$('.chk[data-sec]:not([hidden])').length;em.hidden=!none;if(none)em.textContent=q?`Nothing matches "${ui.q}".`:`No items marked ${ui.chk}.`}
 }
-document.addEventListener('input',e=>{if(e.target.id!=='chkq')return;ui.q=e.target.value.trim();applyQ()});
+document.addEventListener('input',e=>{
+  if(e.target.closest&&e.target.closest('.iprice')){e.target.style.setProperty('--n',e.target.value.length||1);return} /* price box grows with the number */
+  if(e.target.id!=='chkq')return;ui.q=e.target.value.trim();applyQ()});
+/* an opened note box that is left empty folds back into the + Note button */
+document.addEventListener('focusout',e=>{const n=e.target.closest&&e.target.closest('.inote');if(!n||e.target.value.trim())return;const b=n.closest('.irow')?.querySelector('[data-note]');if(b){n.hidden=true;b.hidden=false}});
 /* ---------- core helpers, profile and buying plan ---------- */
 const PKEY='pairwise-profiles';
 function prof(){if(!user)return null;const all=ldj(PKEY,{});return all[(user.email||'').toLowerCase()]||{name:user.name,email:user.email,gender:'',phone:'',city:'',color:'#e8622a'}}
@@ -1629,11 +1681,18 @@ document.addEventListener('click',e=>{
     if(n&&ui.secDel!==a){ui.secDel=a;secMenu(a);return}
     ui.secDel=null;cl.items=cl.items.filter(x=>x.a!==a);cl.groups=cl.groups.filter(g=>g!==a);closeModal();save();refresh();toast(n?`${a} and its ${n} item${n===1?'':'s'} deleted`:`${a} deleted`);return}
   el=t.closest('[data-iedit]');if(el){itemSheet(el.dataset.iedit);return}
+  el=t.closest('[data-note]');if(el){const r=el.closest('.irow'),n=r&&r.querySelector('.inote');if(n){el.hidden=true;n.hidden=false;n.querySelector('input').focus()}return}
+  el=t.closest('[data-again]');if(el){const cl=curList(),tr=(cl.trips||[])[+el.dataset.again];if(!tr||!tr.it)return;const ar=secAreas(cl);let add=0,skip=0;
+    tr.it.forEach((x,k)=>{const key=x.i.toLowerCase(),ex=cl.items.find(r=>r.i.toLowerCase()===key);
+      if(ex&&ex.s==='Need to Buy'){skip++;return}
+      if(ex){ex.s='Need to Buy';delete ex.lg;add++;return}
+      cl.items.push({id:Date.now()+k,a:ar.includes(x.a)?x.a:isG(cl)?guessSec(x.i,cl):(ar[0]||'General'),i:x.i,s:'Need to Buy',p:x.p||'Medium',c:(isG(cl)?S.prices[key]:null)??x.c??null,n:'',q:x.q||''});add++});
+    closeModal();ui.chk='All';ui.q='';save();refresh();toast(add?`${add} item${add===1?'':'s'} back on the list${skip?`, ${skip} already there`:''}`:'Everything from that trip is already on the list');return}
   el=t.closest('[data-idel]');if(el){const id=el.dataset.idel;
     if(ui.idel!==id){ui.idel=id;el.innerHTML=`${ic('trash')}Tap again to delete`;el.classList.add('orange');return}
     ui.idel=null;const cl=curList(),x=cl.items.find(r=>r.id==id);cl.items=cl.items.filter(r=>r.id!=id);closeModal();save();refresh();toast(x?`${x.i} deleted`:'Item deleted');return}
   el=t.closest('[data-chk]');if(el){ui.chk=el.dataset.chk;refresh();return}
-  el=t.closest('[data-tick]');if(el){const cl=curList(),r=cl.items.find(x=>x.id==el.dataset.tick),was=r.s;r.s=(r.s==='Purchased'||r.s==='Already Have')?'Need to Buy':'Purchased';if(isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);save();refresh();if(isG(cl)&&r.s==='Purchased'&&!cl.items.some(x=>x.s==='Need to Buy'))toast('Cart complete. Nice shopping!');return}
+  el=t.closest('[data-tick]');if(el){const cl=curList(),r=cl.items.find(x=>x.id==el.dataset.tick),was=r.s;delete r.lg;r.s=(r.s==='Purchased'||r.s==='Already Have')?'Need to Buy':'Purchased';if(isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);save();refresh();if(isG(cl)&&r.s==='Purchased'&&!cl.items.some(x=>x.s==='Need to Buy'))toast('Cart complete. Nice shopping!');return}
   el=t.closest('[data-del]');if(el){(()=>{const cl=curList();cl.items=cl.items.filter(x=>x.id!=el.dataset.del)})();save();refresh();return}
   el=t.closest('[data-cday]');if(el){calDraft();ui.cal.sel=el.dataset.cday;if(ui.remDraft)delete ui.remDraft.d;refresh();return}
   el=t.closest('[data-cmove]');if(el){calDraft();const C=ui.cal,d=pd(C.sel),n=+el.dataset.cmove;if(C.view==='week')C.sel=iso(addD(d,7*n));else{const nm=new Date(d.getFullYear(),d.getMonth()+n,1),t=new Date();C.sel=iso(nm.getFullYear()===t.getFullYear()&&nm.getMonth()===t.getMonth()?t:nm)}if(ui.remDraft)delete ui.remDraft.d;refresh();return}
@@ -1665,16 +1724,22 @@ document.addEventListener('click',e=>{
   if(a==='planguess'){let n=0;S.check.forEach(x=>{if(x.s==='Need to Buy'&&!(+x.c>0)&&guessP(x)){x.c=guessP(x);n++}});save();refresh();toast(`${n} rough estimates filled in. Replace them with real prices as you find them.`);return}
   if(a==='planall'){ui.planAll=!ui.planAll;refresh();return}
   if(a==='planai'){const pl=buildPlan();aiInto('plan','Review our apartment buying plan using the APARTMENT BUYING PLAN and budget numbers in DATA. In under 120 words: is the monthly amount realistic for us, what should we buy first, and one practical way to keep costs down.',`You have ${fmt(pl.cash,'G$')} saved and add ${fmt(pl.mo,'G$')} a month. The priced items total ${fmt(pl.total,'G$')}, and ${pl.unp.length} items still need a price.`);return}
-  if(a==='shop'){ui.shop=true;ui.fin=false;ui.share=false;refresh();window.scrollTo({top:0});return}
+  if(a==='shop'){closeModal();ui.shop=true;ui.fin=false;ui.share=false;refresh();window.scrollTo({top:0});return}
   if(a==='shopoff'){ui.shop=false;ui.fin=false;ui.lanim=true;refresh();return}
-  if(a==='share'){ui.share=!ui.share;refresh();return}
+  if(a==='share'){const m=!!el.closest('#modalroot');closeModal();ui.share=m||!ui.share;refresh();if(ui.share)$('#sharecard')?.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});return}
+  if(a==='lmenu'){ui.delc=false;ui.fresh=false;listMenu();return}
+  if(a==='lbudget'){budgetSheet();return}
+  if(a==='lbud-clear'){curList().budget=null;closeModal();save();refresh();toast('Budget removed');return}
+  if(a==='history'){historySheet();return}
+  if(a==='fresh'){ui.fresh=true;listMenu();return}
+  if(a==='fresh-yes'){const cl=curList();let n=0;cl.items.forEach(x=>{if(isDone(x)){x.s='Need to Buy';delete x.lg;n++}});ui.fresh=false;ui.chk='All';closeModal();save();refresh();toast(`${n} item${n===1?'':'s'} back to Need to buy`);return}
   if(a==='finish'){ui.fin=!ui.fin;refresh();if(ui.fin)setTimeout(()=>$('#paid')?.focus(),50);return}
   if(a==='copyshare'){const t=shareText(curList());const ok=()=>toast('List copied');try{navigator.clipboard.writeText(t).then(ok,()=>{const b=$('#sharetxt');b.select();document.execCommand('copy');ok()})}catch(e){const b=$('#sharetxt');b.select();try{document.execCommand('copy')}catch(_){}ok()}return}
   if(a==='newlist'){ui.newList=!ui.newList;refresh();if(ui.newList)setTimeout(()=>$('#nlname')?.focus(),50);return}
   if(a==='renlist'){ui.ren=!ui.ren;ui.delc=false;refresh();if(ui.ren)setTimeout(()=>$('#rname')?.select(),50);return}
-  if(a==='dellist'){ui.delc=!ui.delc;ui.ren=false;refresh();return}
+  if(a==='dellist'){ui.delc=true;ui.ren=false;listMenu();return}
   if(a==='secadd'){ui.secAdd=!ui.secAdd;refresh();if(ui.secAdd)setTimeout(()=>$('#secform input')?.focus(),50);return}
-  if(a==='dellist-yes'){S.lists=S.lists.filter(l=>l.id!==ui.list);ui.list='apt';ui.delc=false;ui.chk='All';ui.lanim=true;save();refresh();toast('List deleted');return}
+  if(a==='dellist-yes'){closeModal();S.lists=S.lists.filter(l=>l.id!==ui.list);ui.list='apt';ui.delc=false;ui.chk='All';ui.lanim=true;save();refresh();toast('List deleted');return}
   if(a==='profile'){$('#userpop').hidden=true;go('profile');return}
   if(a==='setup'){openSetup();return}
   if(a==='cats'){ui.catDel=null;openCats();return}
@@ -1703,9 +1768,10 @@ document.addEventListener('change',e=>{
   if(k){const [id,fld]=k.dataset.ck.split(':'),cl=curList(),r=cl.items.find(x=>x.id==id);if(!r)return;const was=r.s;
     r[fld]=fld==='c'?(k.value===''?null:Math.max(0,+k.value)):fld==='n'||fld==='q'?k.value.trim():k.value;
     if(fld==='c'&&r.c!=null&&isG(cl))S.prices[r.i.toLowerCase()]=r.c;
+    if(fld==='s'&&r.s!==was)delete r.lg;
     if(fld==='s'&&isG(cl)&&r.s==='Purchased'&&was!=='Purchased')bought(r);
     save();
-    if(fld==='n'||fld==='q')return; /* notes and quantities change nothing else on screen, so the next field you tapped keeps focus */
+    if(fld==='q'||(fld==='n'&&r.n))return; /* notes and quantities change nothing else on screen, so the next field you tapped keeps focus */
     refresh();return}
   const ta=e.target.closest('[data-txa]');
   if(ta){const x=S.tx[+ta.dataset.txa];if(x){const nb=Math.max(0,+ta.value||0),diff=nb-(-x.a);S.budget[x.c].spent=Math.max(0,+(S.budget[x.c].spent+diff).toFixed(4));S.acc.GYD=+(S.acc.GYD-diff).toFixed(2);x.a=-nb;save();refresh();modal(drillHTML(ui.drill))}return}
@@ -1737,11 +1803,14 @@ document.addEventListener('submit',e=>{
   if(f.id==='paydayform'){const n=Math.min(31,Math.max(1,+$('#pd-d').value|0));S.payDay=n;save();closeModal();refresh();toast(`Payday set to the ${ord(n)} of each month`);return}
   if(f.id==='chatform'){if(AI.busy){AI.ctl&&AI.ctl.abort();return}const i=$('#chatin'),v=i.value.trim();if(v){i.value='';ask(v)}return}
   if(f.id==='quickform'){const v=f.querySelector('input').value.trim();if(!v)return;const cl=curList(),r=addGro(cl,parseQuick(v));save();refresh();toast(r.add?`${r.add} item${r.add===1?'':'s'} added${r.skip?`, ${r.skip} already on the list`:''}`:'Already on the list');setTimeout(()=>$('#quickform input')?.focus(),30);return}
-  if(f.id==='finform'){const paid=Math.max(0,+$('#paid').value||0),cl=curList(),got=cl.items.filter(x=>x.s==='Purchased');if(!paid||!got.length)return;const est=sum(got.map(x=>+x.c||0)),bamt=paid;
-    const fk=foodCat();if(fk){S.budget[fk].spent=+(S.budget[fk].spent+bamt).toFixed(2)}
-    S.acc.GYD=+(S.acc.GYD-paid).toFixed(2);S.tx.unshift({n:'Groceries · '+cl.name,c:fk||'Food',a:-bamt,d:'Today',cy:S.cycle.id,ts:Date.now(),paid:'joint',for:'ours'});
-    (cl.trips=cl.trips||[]).unshift({d:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'}),est,paid,n:got.length});
-    cl.items=cl.items.filter(x=>x.s!=='Purchased');ui.fin=false;save();refresh();toast(`${fmt(paid,'G$')} logged to ${fk||'Food'}`);return}
+  if(f.id==='finform'){const paid=Math.max(0,+$('#paid').value||0),cl=curList(),got=unlogged(cl);if(!paid||!got.length)return;const est=sum(got.map(x=>+x.c||0));
+    const fk=S.budget[$('#fin-c')?.value]?$('#fin-c').value:finCat(cl);if(fk&&S.budget[fk]){S.budget[fk].spent=+(S.budget[fk].spent+paid).toFixed(2)}
+    S.acc.GYD=+(S.acc.GYD-paid).toFixed(2);S.tx.unshift({n:isG(cl)?'Groceries · '+cl.name:cl.type==='apt'?'Apartment purchases':cl.name,c:fk||'Food',a:-paid,d:'Today',cy:S.cycle.id,ts:Date.now(),paid:'joint',for:'ours'});
+    /* the trip keeps its items so Shopping history can put them back on the list later */
+    cl.trips=[{d:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}),est,paid,n:got.length,it:got.map(x=>({i:x.i,q:x.q||'',c:x.c??null,a:x.a,p:x.p}))},...(cl.trips||[])].slice(0,20);
+    if(cl.type==='apt')got.forEach(x=>{x.lg=1});else cl.items=cl.items.filter(x=>!got.includes(x));
+    ui.fin=false;save();refresh();toast(`${fmt(paid,'G$')} logged to ${fk||'Food'}`);return}
+  if(f.id==='lbudform'){const v=$('#lb-a').value,cl=curList();cl.budget=v===''?null:Math.max(0,+v)||null;closeModal();save();refresh();toast(cl.budget?`Budget set to ${fmt(cl.budget,'G$')}`:'Budget removed');return}
   if(f.id==='newlistform'){const nl=makeList($('#nltpl').value,$('#nlname').value.trim());S.lists.push(nl);ui.list=nl.id;ui.newList=false;ui.chk='All';ui.lanim=true;save();refresh();toast(`List "${nl.name}" created`);return}
   if(f.id==='renform'){const v=$('#rname').value.trim();if(v){curList().name=v;ui.ren=false;save();refresh();toast('List renamed')}return}
   if(f.id==='secform'){const v=f.querySelector('input').value.trim().replace(/\s+/g,' '),cl=curList();if(v){const ar=secAreas(cl);if(ar.some(a=>a.toLowerCase()===v.toLowerCase())){toast('That section already exists');return}cl.groups=[...ar,v];ui.secAdd=false;save();refresh();toast(`${v} added`);setTimeout(()=>{const n=$$('form[data-area]').find(x=>x.dataset.area===v);if(n){n.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});n.querySelector('input').focus({preventScroll:true})}},60)}return}
@@ -1749,7 +1818,7 @@ document.addEventListener('submit',e=>{
     const ar=secAreas(cl);if(ar.some(a=>a!==old&&a.toLowerCase()===v.toLowerCase())){toast('That section already exists');return}
     cl.items.forEach(x=>{if(x.a===old)x.a=v});cl.groups=ar.map(a=>a===old?v:a);if(GIC[old]&&!GIC[v])GIC[v]=GIC[old];closeModal();save();refresh();toast(`Renamed to ${v}`);return}
   if(f.id==='itemform'){const cl=curList(),x=cl.items.find(r=>r.id==f.dataset.id),n=$('#it-n').value.trim();if(!x||!n)return;const was=x.s,c=$('#it-c').value;
-    x.i=n;x.a=$('#it-a').value;x.s=$('#it-s').value;if($('#it-p'))x.p=$('#it-p').value;if($('#it-q'))x.q=$('#it-q').value.trim();x.c=c===''?null:Math.max(0,+c);x.n=$('#it-o').value.trim();
+    x.i=n;x.a=$('#it-a').value;x.s=$('#it-s').value;if($('#it-p'))x.p=$('#it-p').value;if($('#it-q'))x.q=$('#it-q').value.trim();x.c=c===''?null:Math.max(0,+c);x.n=$('#it-o').value.trim();if(x.s!==was)delete x.lg;
     if(isG(cl)){if(x.c!=null)S.prices[x.i.toLowerCase()]=x.c;if(x.s==='Purchased'&&was!=='Purchased')bought(x)}
     closeModal();save();refresh();toast(`${x.i} saved`);return}
   if(f.dataset.area){const v=f.querySelector('input').value.trim(),cl=curList(),area=f.dataset.area;if(!v)return;
@@ -1991,7 +2060,7 @@ function authSuccess(){
 }
 
 function wipeAll(){S.paidCycle=null;S.acc={GYD:0,USD:0,EUR:0,GBP:0};S.income=0;S.incomeExtra=0;S.tx=[];S.transfers=[];S.bills=[];S.goals=[];S.balLog=[];S.contacts=S.contacts||[];
-    Object.values(S.budget).forEach(b=>{b.limit=0;b.spent=0});(S.cards||[]).forEach(c=>{c.bal=0;c.hist=[]});S.aptPlan={monthly:0,cash:null};(S.check||[]).forEach(x=>{x.c=null});(S.lists||[]).forEach(l=>{(l.items||[]).forEach(x=>{x.c=null});l.budget=null;l.trips=[]});S.prices={};S.hist={};S.cycle={id:(S.cycle&&S.cycle.id||1)+1,start:iso(new Date())};S.setupDone=false;S.fresh=true;}
+    Object.values(S.budget).forEach(b=>{b.limit=0;b.spent=0});(S.cards||[]).forEach(c=>{c.bal=0;c.hist=[]});S.aptPlan={monthly:0,cash:null};S.aptBud=null;S.aptTrips=[];(S.check||[]).forEach(x=>{x.c=null});(S.lists||[]).forEach(l=>{(l.items||[]).forEach(x=>{x.c=null});l.budget=null;l.trips=[]});S.prices={};S.hist={};S.cycle={id:(S.cycle&&S.cycle.id||1)+1,start:iso(new Date())};S.setupDone=false;S.fresh=true;}
 /* amounts used to be stored in US$ (G$ / 209); convert saved data once */
 function toGYD(){
   if(S.units==='gyd')return false;
